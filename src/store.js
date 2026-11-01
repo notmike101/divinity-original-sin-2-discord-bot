@@ -57,7 +57,7 @@ export class Store {
 
         const task = (async () => {
             try {
-                const fresh = await fetcher();
+                const fresh = await Promise.resolve().then(fetcher);
 
                 this.db.prepare('INSERT OR REPLACE INTO cache VALUES (?, ?, ?)').run(key, JSON.stringify(fresh), Date.now());
                 this.clean();

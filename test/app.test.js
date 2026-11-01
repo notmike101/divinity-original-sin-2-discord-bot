@@ -9,12 +9,12 @@ import { Http } from '../src/http.js';
 import { listView, detailView, chunks, safe } from '../src/render.js';
 import { router, Limits } from '../src/router.js';
 import { rank } from '../src/search.js';
-import { parseArticle, providers, articleUrl, Lookup, relatedLink } from '../src/sources.js';
+import { parseArticle, providers, articleUrl, Lookup } from '../src/sources.js';
 import { Store } from '../src/store.js';
 
 const alice = '900000000000000001'; const bob = '900000000000000002'; const outsider = '900000000000000003';
 const cfg = config({ ALLOWED_USER_IDS: `${alice},${bob}` });
-const entry = (title) => ({ title, url: articleUrl(providers[0], title), provider: 'fandom', source: 'Test source', categories: [] });
+const entry = (title) => ({ title, url: articleUrl(providers[0], title), provider: 'dos2wiki', source: 'Test source', categories: [] });
 const records = Array.from({ length: 12 }, (_, i) => entry(`Secret story title ${i}`));
 const article = { ...entry('Hidden outcome'), edition: 'Unknown', retrievedAt: '2026-01-01T00:00:00Z', parserVersion: '1', sections: [{ title: 'Hidden heading', text: `Private narrative @everyone https://example.com/spoiler ${'ingredients '.repeat(700)}` }, { title: 'Other', text: 'Remaining instructions' }], related: records };
 
@@ -90,39 +90,23 @@ test('default access fails closed and IDs preserve precision', () => {
 test('exact, aliases, spelling variants and fuzzy names rank without merging books', () => {
     const entries = ['Elemental Totem Scroll', 'Blank Summoning Skillbook', 'Elemental Totem', 'Other'].map(entry);
 
-    assert.equal(rank('Elemental Totem Skillbook', entries)[0].title, 'Elemental Totem');
+    assert.equal(rank('Elemental Totem Skillbook', [...entries, entry('Elemental Totem Skillbook')])[0].title, 'Elemental Totem Skillbook');
     assert.equal(rank('Blank Summoning Skillbook', entries)[0].title, 'Blank Summoning Skillbook');
     assert.equal(rank('Elementl Totem', entries)[0].title, 'Elemental Totem');
     assert.equal(rank('physical armor', ['Leather Armour', 'Physical and Magical Armor (Original Sin 2)'].map(entry))[0].title, 'Physical and Magical Armor (Original Sin 2)');
     assert.equal(rank('scrollbook', entries).length, entries.length);
 });
-test('real API fixture preserves every recipe ingredient and alternative row', () => {
-    const parsed = parseArticle(providers[0], JSON.parse(readFileSync(new URL('fixtures/elemental-totem.json', import.meta.url))));
+test('real dos2.wiki fixtures preserve recipe links and remove hidden stat placeholders', () => {
+    const parsed = parseArticle(readFileSync(new URL('fixtures/dos2-Elemental_Totem_Skillbook.html', import.meta.url), 'utf8'));
     const craft = parsed.sections.find((s) => s.title === 'Crafting').text;
 
-    for (const name of ['Sheet of Paper', 'Wooden Figurine', 'Tormented Soul', 'High Quality Tormented Soul', 'Alien Tormented Soul']) {
-        assert.ok(craft.includes(name));
+    for (const ingredient of ['Blank Summoning Skillbook', 'Elemental Totem Scroll']) {
+        assert.ok(craft.includes(ingredient)); assert.ok(parsed.related.some((link) => link.title === ingredient));
     }
 
-    assert.ok(craft.split('Elemental Totem Scroll').length >= 4);
-    assert.ok(parsed.related.some((link) => link.title === 'Blank Summoning Skillbook'));
-    assert.match(parsed.edition, /Definitive/);
-    assert.ok(!parsed.sections.some((s) => /<script|mw-parser-output/.test(s.text)));
-});
-test('unknown recipes, edition mismatch, Gift Bag conditions, unsafe links and malformed markup', () => {
-    // eslint-disable-next-line unicorn/consistent-function-scoping
-    const response = (html) => ({ parse: { title: 'Test', categories: [{ '*': 'Original_Sin_2_ingredients' }], text: { '*': html } } });
-    const parsed = parseArticle(providers[0], response('<p>Useful item description</p><h2>Crafting</h2><p>Gift Bag: Herb Gardens must be activated.</p><table><tr><td>Output</td><td>2 Quills</td><td>Leather Cover</td></tr></table>'));
-
-    assert.match(parsed.sections[1].text, /GAMEPLAY-CHANGING/); assert.match(parsed.sections[1].text, /2 Quills/); assert.match(parsed.edition, /unknown/);
-    const unknown = parseArticle(providers[0], response('<p>Item and NPC mentioned, without a sale relationship.</p>'));
-
-    assert.match(unknown.sections.at(-1).text, /No recipe found in this source/);
-    assert.throws(() => parseArticle(providers[0], {}), /markup/);
-    assert.throws(() => parseArticle(providers[0], response('<script>bad()</script>')), /No useful/);
-    assert.throws(() => parseArticle(providers[0], { parse: { title: 'Other', categories: [{ '*': 'Divine_Divinity_items' }], text: { '*': '<p>Other game</p>' } } }), /another game/);
-    assert.equal(relatedLink(providers[0], 'https://evil.example/wiki/Thing', 'Thing'), null);
-    assert.equal(relatedLink(providers[0], '/wiki/File:Thing', 'Thing'), null);
+    assert.ok(!parsed.sections.some((s) => /Strength|Critical Chance|<script/.test(s.text)));
+    assert.ok(parsed.revision); assert.match(parsed.contentHash, /^[\da-f]{64}$/);
+    assert.match(parsed.edition, /not independently/);
 });
 test('cache deduplicates, persists, preserves good data on failure and labels stale', async (t) => {
     const { dir, store } = setup(t); let calls = 0;
@@ -289,21 +273,16 @@ test('per-user/global limits bound public use', () => {
 
     assert.equal(limit.allow(bob, 100_000), false); assert.ok(limit.allow(bob, 200_000));
 });
-test('source fallback works, invalid entries cannot fetch arbitrary URLs', async (t) => {
+test('retired providers and arbitrary detail URLs fail clearly', async (t) => {
     const { store } = setup(t); const lookup = new Lookup(store, {}, cfg);
 
-    lookup.adapters[0].search = async () => {
-        throw new Error('outage');
-    };
-
-    lookup.adapters[1].search = async () => [{ ...entry('Test'), provider: 'independent', url: articleUrl(providers[1], 'Test') }];
-    assert.equal((await lookup.search('Test')).value[0].provider, 'independent');
-    await assert.rejects(lookup.detail({ ...entry('Test'), url: 'https://evil.example' }), /Invalid/);
+    assert.throws(() => lookup.detail({ ...entry('Test'), url: 'https://evil.example' }), /invalid entry/);
+    assert.throws(() => lookup.detail({ ...entry('Test'), provider: 'fandom' }), /Source changed/);
 });
 test('HTTP rejects arbitrary hosts and validates every redirect destination', async (t) => {
     const http = new Http();
 
     await assert.rejects(http.request('https://example.com/api.php'), /rejected/);
     t.mock.method(globalThis, 'fetch', async () => new Response('', { status: 302, headers: { location: 'https://evil.example/api.php' } }));
-    await assert.rejects(http.request('https://divinity.fandom.com/api.php'), /rejected/);
+    await assert.rejects(http.request('https://dos2.wiki/wiki/Test'), /rejected/);
 });

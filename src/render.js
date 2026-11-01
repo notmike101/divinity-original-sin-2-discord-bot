@@ -4,7 +4,7 @@ export function safe(text) {
 }
 
 /** Split without dropping any content, including long unbroken source table cells. */
-export function chunks(text, size = 1_400) {
+export function chunks(text, size = 1_200) {
     const pages = []; let rest = safe(text);
 
     while (rest.length > size) {
@@ -124,5 +124,5 @@ export function detailView(store, entry, record, owner, { section = 0, page = 0,
         }
     }
 
-    return payload(`${stale ? 'STALE cached article — refresh failed.\n' : ''}**${safe(record.title).slice(0, 160)}**\n${safe(record.edition)}\n${safe(part.title).slice(0, 100)} · section ${section + 1}/${record.sections.length} · page ${page + 1}/${pages.length}\n\n${pages[page]}\n\n${safe(record.source)} · retrieved ${record.retrievedAt.slice(0, 10)} · parser ${record.parserVersion}`, components);
+    return payload(`${stale ? 'STALE cached article — refresh failed.\n' : ''}**${safe(record.title).slice(0, 160)}**\n${safe(record.edition)}\n${safe(part.title).slice(0, 100)} · section ${section + 1}/${record.sections.length} · page ${page + 1}/${pages.length}\n\n${pages[page]}\n\n${safe(part.evidence || 'Source excerpt').slice(0, 100)}\n${safe(record.source)} · retrieved ${record.retrievedAt.slice(0, 10)} · rev ${record.revision || 'unknown'} · ${record.license || 'source terms'}`, components);
 }

@@ -1,5 +1,7 @@
 # Definitive Edition source evaluation
 
+Historical research: the subsequent dos2.wiki adapter is now implemented. See [current coverage](source-coverage.md) and [DE verification](de-verification.md). Integration-status statements below describe the earlier research stage.
+
 Investigated 2026-11-01 with ordinary Node HTTP requests and public search. This evaluates **Divinity: Original Sin 2 — Definitive Edition**, not Divinity II: Ego Draconis. No new provider was enabled by this research.
 
 ## Recommendation

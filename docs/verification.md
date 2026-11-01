@@ -5,11 +5,15 @@
 - Windows 11 Pro x64, `10.0.26300`.
 - Official Node **v26.13.0 LTS**, checksum verified against its release SHASUMS256.txt. The host's earlier Node 26.10.0 was not used for final validation.
 - Native installation with the committed npm lockfile, dependency loading, lint and deterministic tests.
-- Real Fandom search-to-detail checks for all five subject areas and the two crafting scenarios; exact queries/counts are in source-coverage.md.
+- Initial Fandom checks are superseded by real dos2.wiki HTML/local-index checks for all five subject areas and the two crafting scenarios; exact queries/counts are in source-coverage.md.
 - SQLite persistence in a path containing spaces, reopening saved controls, cache deduplication and stale fallback.
 - Startup without participation configuration fails closed before attempting Discord login. A later private local configuration enabled a real Gateway login in allowlist mode. The global /dos2 command was registered and read back with integration_types [1], contexts [2], and all five subcommands. DM/account installation behavior remains a manual check.
 - Gitleaks **8.30.1**, official release checksum verified. Publication integration tests deliberately place synthetic private values in staged content, a deleted historical file and a commit message, then require a redacted rejection.
 - `npm audit --omit=dev`: zero production vulnerabilities at verification time. The pinned upstream-compatible lint toolchain reports development-only advisories and ESLint 9's support notice.
+
+## dos2.wiki adapter verification
+
+The provider migration passes 25 local deterministic tests, including cached raw/index/search persistence, hidden-stat removal, audited DE-field conflicts, Classic exclusions, private payloads and stale fallback. Seven live dos2.wiki checks pass, including a status-effect lookup. Only fields listed in [DE verification](de-verification.md) were independently compared with installed DE definitions. The two-account Discord test of this updated adapter remains manual.
 
 ## Verified native GitHub-hosted CI
 

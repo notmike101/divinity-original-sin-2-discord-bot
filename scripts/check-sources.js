@@ -7,7 +7,7 @@ loadEnv();
 const cfg = config();
 const store = new Store(cfg.dataDir, cfg.sessionMs);
 const lookup = new Lookup(store, new Http(cfg.timeoutMs), cfg);
-const samples = [['crafting', 'Elemental Totem Skillbook'], ['crafting', 'Blank Summoning Skillbook'], ['skills', 'Conjure Incarnate'], ['items', 'Teleportation Gloves'], ['quests', 'The Teleporter'], ['mechanics', 'physical armour']];
+const samples = [['crafting', 'Elemental Totem Skillbook'], ['crafting', 'Blank Summoning Skillbook'], ['skills', 'Conjure Incarnate'], ['skills', 'Burning'], ['items', 'Teleportation Gloves'], ['quests', 'The Teleporter'], ['mechanics', 'physical armour']];
 let failures = 0;
 
 try {
@@ -25,7 +25,7 @@ try {
                 throw new Error('Live detail not verified.');
             }
 
-            console.info(JSON.stringify({ category, query, matches: results.value.length, title: detail.value.title, url: detail.value.url, sections: detail.value.sections.length, characters: detail.value.sections.reduce((sum, s) => sum + s.text.length, 0), related: detail.value.related.length, edition: detail.value.edition, retrievedAt: detail.value.retrievedAt }));
+            console.info(JSON.stringify({ category, query, matches: results.value.length, title: detail.value.title, url: detail.value.url, sections: detail.value.sections.length, characters: detail.value.sections.reduce((sum, s) => sum + s.text.length, 0), related: detail.value.related.length, edition: detail.value.edition, revision: detail.value.revision, verification: detail.value.verification.status, confirmedFields: detail.value.verification.fields, retrievedAt: detail.value.retrievedAt }));
         } catch (error) {
             failures++; console.error(`${category}: ${error.message}`);
         }

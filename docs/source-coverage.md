@@ -1,49 +1,56 @@
-# Source coverage and evidence
+# Current dos2.wiki source coverage
 
-Checked 2026-11-01 using normal Node HTTP requests, without login or a browser session.
+The runtime provider is **dos2.wiki**, targeting **Divinity: Original Sin 2 — Definitive Edition**. Fandom and divinitywiki.com are no longer automatic fallbacks. The earlier [source evaluation](source-evaluation.md) is historical; this note describes the implemented adapter.
 
-## Fandom — primary
+## Retrieval and cache
 
-[Divinity Wiki on Fandom](https://divinity.fandom.com/) exposes a working public MediaWiki API at `/api.php`. Both `action=query` search (including generator search plus category metadata) and `action=parse` article HTML were verified. Normal article HTML and robots.txt requests returned a Cloudflare 403 challenge; the public API returned normal JSON. The application uses that API, not challenge solving or cookie/browser replay. Future source blocks fail gracefully. Search discovers up to 25 candidates per provider; this is not an exhaustive database.
+Only ordinary HTTPS article URLs on dos2.wiki are used. The adapter never calls API, REST, Special or search endpoints. Namespaces, query strings, foreign hosts, credentials and unsafe redirects are rejected. Requests are serialized with a 750 ms start gap, bounded queue/response sizes, timeouts and limited transient retries.
 
-The site's [About page](https://divinity.fandom.com/wiki/Divinity_Wiki:About), retrieved through the API, describes a merged wiki covering the Divinity series, maintained by its listed community bureaucrats. API siteinfo identifies Fandom's `divinity2` wiki and [CC-BY-SA licensing](https://www.fandom.com/licensing). Titles/categories are not assumed specific to DOS2 without evidence.
+Discovery combines normal title lookup with locally ranked links from these fixed indexes, fetched on demand:
 
-Live results, 2026-11-01, with fresh search and parsed articles:
+| Category | Index articles |
+| --- | --- |
+| Crafting | Crafting, Ingredients |
+| Skills | Skills, Status Effects |
+| Items | Items, Armour, Weapons |
+| Quests | Quests |
+| Mechanics | Physical and Magical Armor, Attributes, Combat Abilities |
+| All | Union of these indexes |
 
-| Category / query | Top article | Matches | Parsed sections | Related links |
-| --- | --- | ---: | ---: | ---: |
-| Crafting: Elemental Totem Skillbook | Elemental Totem | 25 | 6 | 23 |
-| Crafting: Blank Summoning Skillbook | Blank Summoning Skillbook | 25 | 6 | 7 |
-| Skills: Conjure Incarnate | Conjure Incarnate | 22 | 9 | 67 |
-| Items: Teleportation Gloves | Gloves of Teleportation | 19 | 5 | 6 |
-| Quests: The Teleporter | The Teleporter | 25 | 8 | 12 |
-| Mechanics: physical armour | Physical and Magical Armor (Original Sin 2) | 25 | 7 | 0 |
+This is bounded discovery, not an exhaustive crawl. Related articles are fetched on demand. Exact-title candidates help find pages missing from the indexes; unknown terms are not replaced with arbitrary nearest results.
 
-`npm run check-sources` prints machine-readable counts, canonical URLs, timestamps and edition labels and fails if either discovery or parsing is missing or stale. Outputs reflect the current upstream content, not fixed acceptance counts. No Discord credentials are required.
+SQLite persists raw article/index HTML, ranked search results, parsed pages and opaque interaction mappings. Source provenance includes canonical URL, retrieval timestamp, revision, raw HTML SHA-256, parser version and CC BY-SA 4.0 attribution. Default freshness is six hours; empty searches cache for at most one minute. Identical concurrent work is deduplicated. Network, markup and audited-field verification failures preserve usable records as labeled STALE data.
 
-The Elemental Totem article explicitly describes combining its scroll with a Blank Summoning Skillbook. Its scroll recipe table includes Sheet of Paper, Wooden Figurine, and Tormented Soul variants. Row spans are expanded so the output/other ingredients accompany every alternative; no quantity is supplied unless written in the source. The blank-book article's crafting section requires **Gift Bag: Herb Gardens**. It is flagged as gameplay-changing content, not an unmodified-DE recipe. Its trader section is incomplete; the app supplies no invented merchant or acquisition claim. Follow its actual links on demand to inspect evidence.
+Parser/cache version 2 isolates this pipeline from old broad-wiki records. Existing dos2.wiki controls survive restart. Old provider controls require repeating the lookup; they cannot serve retired cached content.
 
-## divinitywiki.com — probed alternative, limited current coverage
+## Parsing and trust
 
-[Divinity Wiki](https://divinitywiki.com/) has its own reachable MediaWiki API and article path `/index.php/Title` (not `/wiki/Title`). Siteinfo reports MediaWiki 1.46.0, English, a distinct wiki database, and no configured rightsinfo license. Its [About page](https://divinitywiki.com/index.php/Divinity_Wiki:About) identifies an unofficial community wiki administered by User:Alex. Its main page describes ongoing contributor work. The probes do **not** establish legal ownership or a migration/content-lineage relationship with Fandom, and the app does not treat the sites as independent corroboration.
+Canonical identity, first heading, revision and article container are validated before caching. Hidden stat placeholders, scripts/styles, navigation, notice widgets, galleries and unrelated UI are removed. Paragraphs, lists and complete table cells remain. Row spans preserve alternate ingredient relationships; merged empty headers do not create ingredients. Unstated quantities stay unknown.
 
-Both article retrieval (Main Page, About and the DOS2 overview) and search were probed. Search for `Divinity` returns entries; the representative `Elemental Totem` and `Totem` searches returned zero hits. It is therefore a best-effort fallback, **not verified equivalent coverage** of the five Fandom examples. If Fandom is down and the fallback has no relevant entry, the app reports unavailability or returns labeled usable stale data, not hardcoded facts or a links-only substitute. `/robots.txt` specifies `Crawl-Delay: 20`, respected by the source queue.
+Classic-only titles and explicitly Classic-only sections are excluded. Optional Gift Bag sections are labeled. This is explicit metadata/heading handling, not perfect semantic detection. All arbitrary prose remains a private **source excerpt**, not an independently DE-verified fact.
 
-## Parsed fields and limits
+[DE verification](de-verification.md) documents the narrow independent check of installed DE definitions. Audited Elemental Totem/Conjure Incarnate fields and the Elemental Totem skillbook recipe must match before a refreshed page is accepted. Only listed fields receive a verified-facts section. Other source claims are not silently promoted to verified status.
 
-- Provenance: canonical article URL, source name/provider, retrieval ISO timestamp, parser version, categories and game/edition label.
-- Portable infobox label/value fields, including smart-group skill costs/cooldowns/range, are preserved as labeled source text. They are **not** automatically safe for public posting.
-- Headings, paragraphs, lists and table rows provide the useful detail fallback. Every retained section can be paginated; no ingredient list is silently truncated.
-- Ingredient/related navigation uses actual same-source article links. It does not infer purchases or relationships from co-occurrence.
-- Navigation, scripts/styles, advertisements embedded as navigation, galleries, footers, reference lists and repeated UI chrome are removed. Unexpected empty markup fails parsing instead of being cached as an empty success.
-- The parser is generic, not a schema for every template. Deeply nested tables, future template changes and source inaccuracies remain limitations. A row-span alternative is a source row, not a synthesized normalized recipe.
-- Explicit other-game/mod categories are rejected. Unknown applicability is labeled. DE-specific infobox fields establish that DE fields exist, not that all surrounding prose is DE-only. Mixed Classic/DE articles retain visible uncertainty. Optional Gift Bag requirements are flagged in their section. No automatic Act filter or perfect story detector is claimed.
-- All article content and source titles are private by policy; cache records themselves have no public/private designation. All render paths apply visibility anew.
+A blank-book used-in table describes recipes consuming the book, not necessarily a recipe for creating it. Missing recipes remain unknown. Item/NPC co-occurrence does not establish a sale relationship or current merchant stock.
 
-## Fixture attribution
+## Live evidence
 
-`test/fixtures/elemental-totem.json` is the public API parse response for [Elemental Totem](https://divinity.fandom.com/wiki/Elemental_Totem), retrieved 2026-11-01. It retains source markup for a representative parser regression test. Original content is by Divinity Wiki contributors under the site's CC-BY-SA terms; see [article history](https://divinity.fandom.com/wiki/Elemental_Totem?action=history) for authors. The parser transforms that content into attributed sections. This licensing applies to source content independently from application code. Nothing from private Discord/local configuration is a fixture.
+The source-check script verifies fresh discovery and useful details for all seven queries below and reports canonical URLs, revisions, timestamps, section/link counts and verification status. All passed on the local Windows host on 2026-11-01.
 
-## Further Definitive Edition source evaluation
+| Query | Selected article |
+| --- | --- |
+| Elemental Totem Skillbook | Elemental Totem Skillbook |
+| Blank Summoning Skillbook | Blank Summoning Skillbook |
+| Conjure Incarnate | Conjure Incarnate |
+| Burning | Burning (Status) |
+| Teleportation Gloves | Gloves of Teleportation |
+| The Teleporter | The Teleporter |
+| physical armour | Physical and Magical Armor |
 
-See [source-evaluation.md](source-evaluation.md) for the 2026-11-01 investigation of dos2.wiki, official DE-data provenance, other candidate sources, their access rules, and integration limits. No additional provider was enabled by that investigation.
+Deterministic tests separately cover cache reuse/reopening, malformed content, verification conflicts, source outages, Classic exclusions, complete recipes and private payloads. No installed game or Discord credentials are required for those tests.
+
+## Attribution and limits
+
+The dos2-*.html fixtures were retrieved from the correspondingly named dos2.wiki articles on 2026-11-01, retaining representative markup/revisions in minimal page framing. Content is by wiki contributors under [CC BY-SA 4.0 and stated exceptions](https://dos2.wiki/wiki/dos2wiki:Copyrights); consult article history for authors. The older Fandom fixture is retained as historical source material and is not used by the runtime provider.
+
+The wiki is in preview and some prose imports Fandom. Future template changes, missing links, source inaccuracies and uncertain edition provenance remain possible. The app does not certify the entire wiki or current gameplay state. No other internet provider is enabled without separate evidence.

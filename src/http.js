@@ -6,7 +6,7 @@ export class Http {
         this.queued = 0; this.timeout = timeout; this.tail = Promise.resolve(); this.last = new Map();
     }
 
-    async json(url) {
+    async text(url) {
         if (this.queued >= 12) {
             throw new Error('Source queue busy; try again later.');
         }
@@ -19,7 +19,7 @@ export class Http {
             }
 
             const host = new URL(url).hostname;
-            const gap = host === 'divinitywiki.com' ? 20_000 : 300;
+            const gap = 750;
 
             await delay(Math.max(0, gap - (Date.now() - (this.last.get(host) || 0))));
             this.last.set(host, Date.now());
@@ -39,7 +39,7 @@ export class Http {
         let url = new URL(input);
 
         for (let attempt = 0; attempt < 3; attempt++) {
-            if (!['divinity.fandom.com', 'divinitywiki.com'].includes(url.hostname) || url.protocol !== 'https:' || url.port || url.username || url.password || url.pathname !== '/api.php') {
+            if (url.hostname !== 'dos2.wiki' || url.protocol !== 'https:' || url.port || url.username || url.password || url.search || !/^\/wiki\/[^:]+$/.test(decodeURIComponent(url.pathname))) {
                 throw new Error('Source URL rejected.');
             }
 
@@ -71,7 +71,9 @@ export class Http {
             }
 
             if (!response.ok) {
-                throw new Error(`Source HTTP ${response.status}.`);
+                const error = new Error(`Source HTTP ${response.status}.`);
+
+                error.status = response.status; throw error;
             }
 
             const chunks = []; let bytes = 0;
@@ -86,19 +88,7 @@ export class Http {
                 chunks.push(chunk);
             }
 
-            let data;
-
-            try {
-                data = JSON.parse(Buffer.concat(chunks).toString());
-            } catch {
-                throw new Error('Source did not return valid JSON.');
-            }
-
-            if (data.error) {
-                throw new Error('Source API returned an error.');
-            }
-
-            return data;
+            return Buffer.concat(chunks).toString('utf8');
         }
 
         throw new Error('Source redirect/retry limit reached.');
