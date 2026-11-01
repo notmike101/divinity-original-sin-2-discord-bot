@@ -13,7 +13,7 @@
 
 ## dos2.wiki adapter verification
 
-The provider migration passes 25 local deterministic tests, including cached raw/index/search persistence, hidden-stat removal, audited DE-field conflicts, Classic exclusions, private payloads and stale fallback. Seven live dos2.wiki checks pass, including a status-effect lookup. Only fields listed in [DE verification](de-verification.md) were independently compared with installed DE definitions. The two-account Discord test of this updated adapter remains manual.
+The provider migration passes 32 local deterministic tests, including cached raw/index/search persistence, hidden-stat removal, audited DE-field conflicts, Classic exclusions, private payloads and stale fallback. Seven live dos2.wiki checks pass, including a status-effect lookup. Only fields listed in [DE verification](de-verification.md) were independently compared with installed DE definitions. The two-account Discord test of this updated adapter remains manual.
 
 ## Verified native GitHub-hosted CI
 
@@ -49,7 +49,7 @@ Use only private local configuration for credentials and real user IDs. Do not c
 1. Configure User Install and applications.commands. Leave Interactions Endpoint URL unset. Register commands once. Both accounts choose **Add to my apps**.
 2. Start the app in allowlist mode with the two participants privately configured. Confirm startup reports allowlist and a count, without identities.
 3. In the existing DM/group DM, each participant runs `/dos2 help`, then searches. Exercise craft, skill, item and all search categories. Verify multiple candidates and page navigation on desktop/mobile.
-4. Confirm the shared payload has neutral labels only: no hidden title, snippet, thumbnail, source URL or preview. Each participant separately clicks Reveal and sees useful private result titles/details. The shared result list remains available.
+4. Confirm routine result names and mechanical details are shared. For story entries/sections, confirm hidden titles, snippets, URLs and previews remain absent from shared payloads. Each participant separately clicks Reveal and sees useful private result titles/details. The shared result list remains available.
 5. Exercise every private control: section/page navigation, related ingredient/page selection, related-link pages, refresh and external source link. Confirm the other participant cannot see these replies. Each person can open their own private view from the same shared control.
 6. Change the shared page as one person while the other clicks an older numbered button. Confirm that older button still refers to its original entry. Check no message-limit errors on long recipes.
 7. Stop with Ctrl+C, restart, and click an existing shared control. It should still work while the seven-day session is valid. Confirm repeated command invocation recovers from an expired control.

@@ -21,13 +21,13 @@ This is bounded discovery, not an exhaustive crawl. Related articles are fetched
 
 SQLite persists raw article/index HTML, ranked search results, parsed pages and opaque interaction mappings. Source provenance includes canonical URL, retrieval timestamp, revision, raw HTML SHA-256, parser version and CC BY-SA 4.0 attribution. Default freshness is six hours; empty searches cache for at most one minute. Identical concurrent work is deduplicated. Network, markup and audited-field verification failures preserve usable records as labeled STALE data.
 
-Parser/cache version 2 isolates this pipeline from old broad-wiki records. Existing dos2.wiki controls survive restart. Old provider controls require repeating the lookup; they cannot serve retired cached content.
+Parser/cache version 3 isolates this pipeline from old broad-wiki records. Existing dos2.wiki controls survive restart. Old provider controls require repeating the lookup; they cannot serve retired cached content.
 
 ## Parsing and trust
 
 Canonical identity, first heading, revision and article container are validated before caching. Hidden stat placeholders, scripts/styles, navigation, notice widgets, galleries and unrelated UI are removed. Paragraphs, lists and complete table cells remain. Row spans preserve alternate ingredient relationships; merged empty headers do not create ingredients. Unstated quantities stay unknown.
 
-Classic-only titles and explicitly Classic-only sections are excluded. Optional Gift Bag sections are labeled. This is explicit metadata/heading handling, not perfect semantic detection. All arbitrary prose remains a private **source excerpt**, not an independently DE-verified fact.
+Classic-only titles and explicitly Classic-only sections are excluded. Optional Gift Bag sections are labeled. This is explicit metadata/heading handling, not perfect semantic detection. Routine names, recipes, stats, skill effects and ordinary acquisition are shared. Narrative entries/sections use private Reveal. Source categories, entity schemas and ancestor headings guide disclosure; query categories do not. Source-only confidence is independent from spoiler visibility. Ambiguous entries remain neutral until classified.
 
 [DE verification](de-verification.md) documents the narrow independent check of installed DE definitions. Audited Elemental Totem/Conjure Incarnate fields and the Elemental Totem skillbook recipe must match before a refreshed page is accepted. Only listed fields receive a verified-facts section. Other source claims are not silently promoted to verified status.
 
@@ -54,3 +54,5 @@ Deterministic tests separately cover cache reuse/reopening, malformed content, v
 The dos2-*.html fixtures were retrieved from the correspondingly named dos2.wiki articles on 2026-11-01, retaining representative markup/revisions in minimal page framing. Content is by wiki contributors under [CC BY-SA 4.0 and stated exceptions](https://dos2.wiki/wiki/dos2wiki:Copyrights); consult article history for authors. The older Fandom fixture is retained as historical source material and is not used by the runtime provider.
 
 The wiki is in preview and some prose imports Fandom. Future template changes, missing links, source inaccuracies and uncertain edition provenance remain possible. The app does not certify the entire wiki or current gameplay state. No other internet provider is enabled without separate evidence.
+
+The visible five result candidates are hydrated on demand before rendering shared titles. Unknown related entries use neutral previews; their fetched details are checked again before rendering. Public navigation updates the shared card, while every private reveal/navigation stays owner-scoped. Old private controls remain private after the policy change; repeat the search to obtain new shared controls.

@@ -286,3 +286,104 @@ test('HTTP rejects arbitrary hosts and validates every redirect destination', as
     t.mock.method(globalThis, 'fetch', async () => new Response('', { status: 302, headers: { location: 'https://evil.example/api.php' } }));
     await assert.rejects(http.request('https://dos2.wiki/wiki/Test'), /rejected/);
 });
+
+test('routine names, recipes, stats and ordinary acquisition are shared for both actors', async (t) => {
+    const { store } = setup(t);
+    const item = { ...entry('Elemental Totem Skillbook'), entityType: 'skillbook', sourceCategories: ['Skillbooks'] };
+    const record = { ...article, ...item, sections: [{ title: 'Crafting', text: 'Blank Summoning Skillbook + Elemental Totem Scroll' }, { title: 'Locations', text: 'Sold by a summoning vendor in Fort Joy.' }], related: [] };
+    const shared = listView(store, [item]);
+
+    assert.ok(shared.content.includes(item.title)); assert.equal(shared.components[0].components[0].label, 'View 1');
+    let current; const lookup = {
+        async detail() {
+            assert.ok(['deferReply', 'deferUpdate'].includes(current.calls[0][0]));
+
+            return { value: record };
+        },
+    };
+    const route = router(cfg, store, lookup);
+
+    for (const user of [alice, bob]) {
+        current = fake(user, 'button', shared.components[0].components[0].custom_id); await route(current);
+        assert.equal(current.ephemeral, false); assert.match(current.calls[1][1].content, /Blank Summoning Skillbook/);
+        const next = current.calls[1][1].components[0].components.find((c) => c.label === 'Next section');
+
+        current = fake(user, 'button', next.custom_id); await route(current); assert.equal(current.calls[0][0], 'deferUpdate'); assert.match(current.calls[1][1].content, /Fort Joy/);
+    }
+});
+test('mixed articles share routine sections and reveal narrative sections in a new private flow', async (t) => {
+    const { store } = setup(t); const item = { ...entry('Example Potion'), entityType: 'item', sourceCategories: ['Potions'] };
+    const record = { ...article, ...item, sections: [{ title: 'Effects', text: 'Restores 30 vitality.' }, { title: 'Quest outcome SECRET_HEADING', text: 'SECRET_PLOT and the ending.' }, { title: 'Recipe', text: 'Bottle + ingredient' }], related: [{ ...entry('SECRET_CHARACTER'), sourceCategories: ['Characters'] }] };
+    const publicView = detailView(store, item, record, null);
+
+    limits(publicView); assert.match(publicView.content, /Restores 30/); assert.ok(!JSON.stringify(publicView).includes('SECRET'));
+    const reveal = publicView.components.flatMap((row) => row.components).find((c) => c.label === 'Reveal story details');
+
+    assert.ok(reveal);
+    const lookup = {
+        async detail() {
+            return { value: record };
+        },
+    }; const route = router(cfg, store, lookup);
+    const click = fake(bob, 'button', reveal.custom_id);
+
+    await route(click); assert.deepEqual(click.calls[0], ['deferReply', { flags: 64 }]);
+    const next = click.calls[1][1].components[0].components.find((c) => c.label === 'Next section');
+    const nextClick = fake(bob, 'button', next.custom_id);
+
+    await route(nextClick); assert.equal(nextClick.ephemeral, true); assert.ok(nextClick.calls[1][1].content.includes(safe('SECRET_PLOT')));
+    const wrongActor = fake(alice, 'button', next.custom_id);
+
+    await route(wrongActor); assert.match(wrongActor.calls[0][1].content, /belongs to another/);
+});
+test('changed source metadata cannot publish a story through a previously public control', async (t) => {
+    const { store } = setup(t); const item = { ...entry('Example Potion'), entityType: 'item' };
+    const record = { ...article, ...entry('SECRET_STORY_TITLE'), sourceCategories: ['Quests'], sections: [{ title: 'Ending', text: 'SECRET_PLOT' }], related: [] };
+    const state = store.control({ kind: 'detail', entry: item, owner: null, refresh: true }); const click = fake(alice, 'button', state);
+
+    await router(cfg, store, {
+        async detail() {
+            return { value: record };
+        },
+    })(click);
+    assert.deepEqual(click.calls[0], ['deferReply', undefined]); assert.ok(!JSON.stringify(click.calls).includes('SECRET'));
+    assert.match(click.calls[1][1].content, /story content/);
+});
+test('search preview uses source metadata after deferring and ignores the requested category for disclosure', async (t) => {
+    const { store } = setup(t); const result = { ...entry('SECRET_QUEST_TITLE'), categories: ['skills'] }; const interaction = fake(alice);
+    const lookup = {
+        async search() {
+            return { value: [result] };
+        }, async preview(results) {
+            assert.equal(interaction.calls[0][0], 'deferReply');
+
+            return results.map((entry) => ({ ...entry, entityType: 'item', sourceCategories: ['Quests'] }));
+        },
+    };
+
+    interaction.options.getSubcommand = () => 'skill'; await router(cfg, store, lookup)(interaction);
+    assert.ok(!JSON.stringify(interaction.calls).includes('SECRET_QUEST_TITLE')); assert.match(interaction.calls[1][1].content, /Reveal privately/);
+});
+
+test('nested narrative context stays hidden and public related previews cannot reveal story text', async (t) => {
+    const { store } = setup(t); const item = { ...entry('Example Potion'), entityType: 'item' };
+    const record = { ...article, ...item, sections: [{ title: 'Effects', text: 'Restores vitality' }, { title: 'Choice one', headings: ['Quest outcomes', 'Choice one'], text: 'SECRET_RESOLUTION' }], related: [entry('SECRET_NPC')] };
+    const shared = detailView(store, item, record, null);
+
+    assert.ok(!JSON.stringify(shared).includes('SECRET'));
+    const select = shared.components.flatMap((row) => row.components).find((c) => c.type === 3);
+
+    assert.ok(select); assert.match(select.options[0].label, /preview/);
+    const click = fake(bob, 'button', select.custom_id);
+
+    click.values = ['0'];
+    const story = { ...article, sourceCategories: ['Characters'], title: 'SECRET_NPC' };
+
+    await router(cfg, store, {
+        async detail() {
+            return { value: story };
+        },
+    })(click);
+    assert.equal(click.calls[0][0], 'deferUpdate'); assert.ok(!JSON.stringify(click.calls).includes('SECRET'));
+    assert.match(click.calls[1][1].content, /Reveal it privately/);
+});

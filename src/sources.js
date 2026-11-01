@@ -108,6 +108,21 @@ export class Lookup {
         }, refresh);
     }
 
+    /** Hydrate metadata only for the visible five candidates; failed previews stay unclassified. */
+    async preview(results, page = 0) {
+        const visible = await Promise.all(results.slice(page * 5, page * 5 + 5).map(async (entry) => {
+            try {
+                const { value } = await this.detail(entry);
+
+                return { ...entry, entityType: value.entityType, sourceCategories: value.sourceCategories };
+            } catch {
+                return { ...entry, entityType: null, sourceCategories: [] };
+            }
+        }));
+
+        return results.map((entry, index) => index >= page * 5 && index < page * 5 + 5 ? visible[index - page * 5] : entry);
+    }
+
     detail(entry, refresh = false) {
         if (entry.provider !== provider.id || articleUrl(provider, entry.title) !== entry.url) {
             throw new Error('Source changed or invalid entry. Repeat /dos2 search.');

@@ -50,6 +50,14 @@ export function links($, root) {
         const link = relatedLink(provider, $(node).attr('href'), $(node).text() || $(node).attr('title'));
 
         if (link) {
+            const table = $(node).closest('table');
+            const headings = table.find('tr').first().children('th').text();
+            const recipeRole = /Product/.test(headings) && /Ingredients/.test(headings);
+
+            if (recipeRole) {
+                link.entityType = 'ingredient';
+            }
+
             found.set(link.url, link);
         }
     });
@@ -109,6 +117,8 @@ export function parseArticle(html, retrievedAt = new Date().toISOString()) {
     const { $, root, title, url, revision } = document(html);
     const related = links($, root).filter((link) => link.title !== title);
     const box = root.find('.dos2-infobox-container').first();
+    const sourceCategories = $('#catlinks .mw-normal-catlinks a').map((_, node) => $(node).text().trim()).get().filter(Boolean);
+    const entityType = box.hasClass('skill-infobox') ? 'skill' : box.hasClass('skillbook-infobox') ? 'skillbook' : box.hasClass('scroll-infobox') ? 'scroll' : null;
     const fields = {};
 
     if (box.hasClass('skill-infobox')) {
@@ -131,6 +141,7 @@ export function parseArticle(html, retrievedAt = new Date().toISOString()) {
     }
 
     const sections = [];
+    const headings = [];
     let current = { title: 'Overview', text: '' };
     let optional = /gift bag|herb gardens|crafter.s kit/i.test(title);
     let excludedDepth = null;
@@ -163,6 +174,12 @@ export function parseArticle(html, retrievedAt = new Date().toISOString()) {
             flush(); const heading = tidy(node.text());
             const depth = Number(element.tagName.slice(1));
 
+            while (headings.length && headings.at(-1).depth >= depth) {
+                headings.pop();
+            }
+
+            headings.push({ depth, title: heading });
+
             if (excludedDepth !== null && depth <= excludedDepth) {
                 excludedDepth = null;
             }
@@ -176,7 +193,7 @@ export function parseArticle(html, retrievedAt = new Date().toISOString()) {
             }
 
             optional ||= /gift bag|herb gardens|crafter.s kit/i.test(heading);
-            current = { title: heading || 'Details', text: '' };
+            current = { title: heading || 'Details', text: '', headings: headings.map((h) => h.title) };
 
             return;
         }
@@ -227,5 +244,5 @@ export function parseArticle(html, retrievedAt = new Date().toISOString()) {
         sections.push({ title: 'Recipe availability', text: 'No recipe found in this source. This does not prove non-craftability. Acquisition and merchant stock are unknown unless explicitly established.', evidence: 'Unknown' });
     }
 
-    return { title, url, provider: provider.id, source: provider.name, retrievedAt, parserVersion: PARSER_VERSION, revision, contentHash: createHash('sha256').update(html).digest('hex'), license: 'CC BY-SA 4.0', fields, sections, related, categories: [], edition: 'DOS2 DE target; source excerpts are not independently edition-verified' };
+    return { title, url, provider: provider.id, source: provider.name, retrievedAt, parserVersion: PARSER_VERSION, revision, contentHash: createHash('sha256').update(html).digest('hex'), license: 'CC BY-SA 4.0', sourceCategories, entityType, fields, sections, related, categories: [], edition: 'DOS2 DE target; source excerpts are not independently edition-verified' };
 }

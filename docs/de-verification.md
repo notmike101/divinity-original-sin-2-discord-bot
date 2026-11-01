@@ -30,7 +30,7 @@ Hashes identify retained local bytes; they are not publisher signatures or runti
 
 ## Runtime policy and limits
 
-`src/verification.js` checks only this small audited baseline against freshly parsed wiki fields. Missing or conflicting fields reject refresh; previous usable content can be returned as explicitly STALE. A verified-facts section names only the checked facts. Other article sections remain private, attributed **source excerpts**, not independently DE-verified facts. The baseline does not replace live source retrieval.
+`src/verification.js` checks only this small audited baseline against freshly parsed wiki fields. Missing or conflicting fields reject refresh; previous usable content can be returned as explicitly STALE. A verified-facts section names only the checked facts. Other article sections remain attributed **source excerpts**, not independently DE-verified facts. Routine content is shared and narrative content uses private Reveal; spoiler disclosure is separate from DE verification. The baseline does not replace live source retrieval.
 
 Review the baseline if the game build or relevant definitions change, and bump the parser/cache version when changing the verification contract. Tests do not require an installed game.
 

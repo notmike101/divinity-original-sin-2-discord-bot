@@ -163,3 +163,25 @@ test('a synchronous cache failure does not retain a rejected in-flight request',
     assert.equal(store.pending.size, 0);
     assert.equal((await store.cached('retry-sync', 1_000, () => ['recovered'])).value[0], 'recovered');
 });
+
+test('preview hydrates only the visible immutable result window', async (t) => {
+    const { store } = setup(t); const lookup = new Lookup(store, {}, {}); const read = [];
+
+    lookup.detail = async (entry) => {
+        read.push(entry.title);
+
+        return { value: { entityType: 'item', sourceCategories: ['Armour'] } };
+    };
+
+    const entries = Array.from({ length: 8 }, (_, i) => ({ title: `Item ${i}` })); const prepared = await lookup.preview(entries, 1);
+
+    assert.deepEqual(read, ['Item 5', 'Item 6', 'Item 7']); assert.equal(prepared[0].entityType, undefined); assert.equal(prepared[5].entityType, 'item'); assert.equal(entries[5].entityType, undefined);
+});
+
+test('source categories and ancestor headings survive parsing for disclosure decisions', () => {
+    const record = parseArticle(html('Example', '<div class="dos2-infobox-container skill-infobox"><p>UID: Example</p></div><h2>Quest outcomes</h2><h3>Choice one</h3><p>Hidden resolution</p><h2>Crafting</h2><p>Routine formula</p>').replace('</div></div>', '</div></div><div id="catlinks"><div class="mw-normal-catlinks"><a>Quests</a></div></div>'));
+
+    assert.equal(record.entityType, 'skill'); assert.deepEqual(record.sourceCategories, ['Quests']);
+    assert.deepEqual(record.sections.find((s) => s.title === 'Choice one').headings, ['Quest outcomes', 'Choice one']);
+    assert.deepEqual(record.sections.find((s) => s.title === 'Crafting').headings, ['Crafting']);
+});
