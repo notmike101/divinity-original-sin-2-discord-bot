@@ -1,6 +1,6 @@
 # Current dos2.wiki source coverage
 
-The runtime provider is **dos2.wiki**, targeting **Divinity: Original Sin 2 — Definitive Edition**. Fandom and divinitywiki.com are no longer automatic fallbacks. The earlier [source evaluation](source-evaluation.md) is historical; this note describes the implemented adapter.
+The default runtime provider is **dos2.wiki**, targeting **Divinity: Original Sin 2 — Definitive Edition**. Fandom and divinitywiki.com are no longer automatic fallbacks. The earlier [source evaluation](source-evaluation.md) is historical; this note describes the implemented adapter.
 
 ## Retrieval and cache
 
@@ -59,6 +59,6 @@ Deterministic tests separately cover cache reuse/reopening, malformed content, v
 
 The dos2-*.html fixtures were retrieved from the correspondingly named dos2.wiki articles on 2026-11-01, retaining representative markup/revisions in minimal page framing. Content is by wiki contributors under [CC BY-SA 4.0 and stated exceptions](https://dos2.wiki/wiki/dos2wiki:Copyrights); consult article history for authors. The older Fandom fixture is retained as historical source material and is not used by the runtime provider.
 
-The wiki is in preview and some prose imports Fandom. Future template changes, missing links, source inaccuracies and uncertain edition provenance remain possible. The app does not certify the entire wiki or current gameplay state. No other internet provider is enabled without separate evidence.
+The wiki is in preview and some prose imports Fandom. Future template changes, missing links, source inaccuracies and uncertain edition provenance remain possible. The app does not certify the entire wiki or current gameplay state. Separately attributed Larian forum and Fextralife integrations are documented in [supplementary sources](supplementary-sources.md), including the user-confirmed Fextralife permission and persistent offline cache. Supplementary claims do not replace these audited fields.
 
 The visible five result candidates are hydrated on demand before rendering shared titles. Unknown related entries use neutral previews; their fetched details are checked again before rendering. Public navigation updates the shared card, while every private reveal/navigation stays owner-scoped. Old private controls remain private after the policy change; repeat the search to obtain new shared controls.

@@ -84,7 +84,7 @@ export function router(cfg, store, lookup, limits = new Limits()) {
                 await interaction.deferReply();
 
                 try {
-                    const result = await lookup.search(interaction.options.getString('query'), category);
+                    const result = ['forum', 'fextralife'].includes(sub) ? await lookup[sub].search(interaction.options.getString('query')) : await lookup.search(interaction.options.getString('query'), category);
 
                     return await interaction.editReply(await renderList(result.value, 0, null, result.stale));
                 } catch {
@@ -112,6 +112,15 @@ export function router(cfg, store, lookup, limits = new Limits()) {
                 }
 
                 return await interaction.editReply(await renderList(state.results, state.page, owner, state.stale));
+            }
+
+            if (['forum', 'fextralife'].includes(state.kind)) {
+                const owner = state.owner || !mechanical(state.entry) ? interaction.user.id : null;
+
+                await interaction.deferReply(owner ? { flags: MessageFlags.Ephemeral } : undefined);
+                const result = await lookup[state.kind].search(state.entry.title);
+
+                return await interaction.editReply(await renderList(result.value, 0, owner, result.stale));
             }
 
             if (!['detail', 'related', 'section'].includes(state.kind)) {

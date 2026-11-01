@@ -103,7 +103,7 @@ function limits(payload) {
 test('global user install definition has no guild requirement', () => {
     assert.deepEqual(command.integration_types, [1]); assert.deepEqual(command.contexts, [2]);
     assert.equal(JSON.stringify(command).includes('guild'), false);
-    assert.deepEqual(command.options.map((o) => o.name), ['search', 'craft', 'skill', 'item', 'help']);
+    assert.deepEqual(command.options.map((o) => o.name), ['search', 'craft', 'skill', 'item', 'forum', 'fextralife', 'help']);
 });
 test('default access fails closed and IDs preserve precision', () => {
     assert.equal(permitted(config({}), alice), false);
@@ -434,4 +434,43 @@ test('section selection stays on the same topic when source sections reorder; in
     const invalid = fake(alice, 'button', section.id);
 
     invalid.values = ['99']; await route(invalid); assert.equal(invalid.calls[0][1].flags, 64); assert.equal(fetched, 1);
+});
+
+test('supplementary commands and source buttons defer before retrieval and preserve access/private ownership', async (t) => {
+    const { store } = setup(t); let calls = 0;
+    const item = { ...article, ...entry('Example Skill'), entityType: 'skill', sections: [{ title: 'Effects', text: 'A routine mechanical effect' }], related: [] };
+    const source = {
+        async search(query) {
+            calls++; assert.equal(query, 'Example Skill');
+
+            return { value: [item], stale: false };
+        },
+    };
+    const route = router(cfg, store, { forum: source, fextralife: source });
+
+    for (const sub of ['forum', 'fextralife']) {
+        const command = fake(alice);
+
+        command.options = { getSubcommand: () => sub, getString: (key) => key === 'query' ? 'Example Skill' : null };
+        await route(command); assert.equal(command.calls[0][0], 'deferReply'); limits(command.calls[1][1]);
+        const shared = detailView(store, item, item, null, { results: [item] });
+        const label = sub === 'forum' ? 'Forum discussions' : 'Fextralife lookup';
+        const control = shared.components.flatMap((row) => row.components).find((c) => c.label === label);
+        const click = fake(bob, 'button', control.custom_id);
+
+        await route(click); assert.equal(click.calls[0][0], 'deferReply'); assert.equal(click.calls[0][1], undefined);
+        const denied = fake(outsider, 'button', control.custom_id);
+
+        await route(denied); assert.equal(denied.calls[0][1].flags, 64);
+        const privateCard = detailView(store, item, item, alice);
+        const privateControl = privateCard.components.flatMap((row) => row.components).find((c) => c.label === label);
+        const wrongOwner = fake(bob, 'button', privateControl.custom_id);
+
+        await route(wrongOwner); assert.equal(wrongOwner.calls[0][1].flags, 64);
+        const own = fake(alice, 'button', privateControl.custom_id);
+
+        await route(own); assert.equal(own.calls[0][1].flags, 64);
+    }
+
+    assert.equal(calls, 6);
 });

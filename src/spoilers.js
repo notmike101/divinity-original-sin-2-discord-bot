@@ -1,6 +1,6 @@
 /** Disclosure uses source metadata, never the slash-command category or verification status. */
 const mechanicalTitles = new Set(['Crafting', 'Ingredients', 'Skills', 'Status Effects', 'Items', 'Armour', 'Weapons', 'Attributes', 'Combat Abilities', 'Physical and Magical Armor', 'Action Point', 'Source Point']);
-const narrative = /\b(?:quests?|walkthrough|story|plot|lore|dialogue|endings?|outcomes?|character background|origin story)\b/i;
+const narrative = /\b(?:spoilers?|quests?|walkthrough|story|plot|lore|dialogue|endings?|outcomes?|character background|origin story)\b/i;
 
 /** Routine entities and rules can be shared. Narrative taxonomy takes precedence. */
 export function mechanical(record) {

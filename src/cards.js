@@ -122,7 +122,7 @@ export function detailEmbed(record, part, owner, page, stale) {
 
     page = Math.max(0, Math.min(page, pages.length - 1));
     const content = part.overview ? overview(record, owner) : { description: pages[page] };
-    const embed = { title: safe(record.title).slice(0, 240), url: record.url, color: 0xB9_8D_4C, author: { name: 'dos2.wiki' }, ...content, footer: { text: `${part.overview ? 'Overview' : topicLabel(part.title)}${pages.length > 1 ? ` · ${page + 1}/${pages.length}` : ''} · ${record.verification?.status === 'audited-fields-match' ? (record.verification.fields.includes('skillbook recipe') ? 'Recipe DE-checked' : 'Costs/range DE-checked') : 'Source-derived; DE details unverified'}${stale ? ' · STALE CACHE' : ''}` } };
+    const embed = { title: safe(record.title).slice(0, 240), url: record.url, color: 0xB9_8D_4C, author: { name: record.provider === 'larian' ? 'Larian DOS2 forums · community reports' : record.provider === 'fextralife' ? 'Fextralife DOS2 wiki' : 'dos2.wiki' }, ...content, footer: { text: `${part.overview ? 'Overview' : topicLabel(part.title)}${pages.length > 1 ? ` · ${page + 1}/${pages.length}` : ''} · ${record.verification?.status === 'audited-fields-match' ? (record.verification.fields.includes('skillbook recipe') ? 'Recipe DE-checked' : 'Costs/range DE-checked') : 'Source-derived; DE details unverified'}${stale ? ' · STALE CACHE' : ''}` } };
 
     const retrieved = new Date(record.retrievedAt);
 

@@ -83,6 +83,8 @@ Every command, button, related-page selection, unsupported modal, and autocomple
 - `/dos2 craft query:<text>` — crafting and ingredient acquisition.
 - `/dos2 skill query:<text>` — spells, skills, statuses.
 - `/dos2 item query:<text>` — equipment, items, vendors.
+- `/dos2 forum query:<topic or public thread URL>` — targeted Larian DOS2 discussions cached offline.
+- `/dos2 fextralife query:<name>` — supplementary Fextralife DOS2 wiki lookup, cached offline.
 - `/dos2 help` — usage, broader category coverage, disclosure rules.
 
 Quests includes NPCs and locations; mechanics covers rules. Categories prefer metadata matches and keep useful cross-topic alternatives. Searches normalize whitespace/punctuation and common variants, use curated aliases, rank exact names first, then aliases/phrases/token/edit-distance matches. Misspellings use bounded local fuzzy matching against the cached dos2.wiki sitemap title catalog. No wiki search/API endpoint is called. Distinct scrolls, skillbooks and blank books remain separate entries. There is no generated conversational answer.
@@ -95,15 +97,15 @@ Public section/page/related navigation updates its shared card. All subsequent p
 
 ## Evidence, cache and sessions
 
-The primary and only runtime source is **dos2.wiki**. The publisher sitemap title catalog (5,045 article titles at verification) and subject indexes support local name matching. Article details are fetched on demand and cached in SQLite; this does not crawl every article. No API/search endpoints or broad-wiki fallback are used. See [source coverage](docs/source-coverage.md) and [DE verification](docs/de-verification.md). Records retain canonical URL, article revision, raw HTML SHA-256, retrieval time, parser version and license. Hidden stat placeholders and navigation are removed. Explicit Classic-only articles/sections are excluded; optional Gift Bag sections are labeled. Only the small set of audited fields described in the verification report is independently checked against installed DE definitions. Other wiki prose remains clearly labeled as a source excerpt, not DE-verified fact.
+The default runtime source is **dos2.wiki**. **Larian DOS2 forums** and the **Fextralife DOS2 wiki** are separately attributed supplementary lookups, available through their commands and card buttons. See [supplementary source coverage and permissions](docs/supplementary-sources.md). Retrieved supplementary pages and title catalogs persist locally without expiry or automatic revalidation; only the explicit Refresh action fetches an already cached page again. They do not overwrite audited DE facts. The publisher sitemap title catalog (5,045 article titles at verification) and subject indexes support local name matching. Article details are fetched on demand and cached in SQLite; this does not crawl every article. No API/search endpoints or broad-wiki fallback are used. See [source coverage](docs/source-coverage.md) and [DE verification](docs/de-verification.md). Records retain canonical URL, article revision, raw HTML SHA-256, retrieval time, parser version and license. Hidden stat placeholders and navigation are removed. Explicit Classic-only articles/sections are excluded; optional Gift Bag sections are labeled. Only the small set of audited fields described in the verification report is independently checked against installed DE definitions. Other wiki prose remains clearly labeled as a source excerpt, not DE-verified fact.
 
 Recipe tables preserve output, every ingredient/quantity actually written, row-span alternatives and nearby source conditions. Unstated quantities stay unstated. Prose remains a source excerpt, not inferred facts. When no recipe section exists, the app says **“No recipe found in this source”**, which does not prove non-craftability. Mentioning an NPC and item together never creates a sale relationship. Source availability never establishes current merchant stock or save state.
 
 SQLite stores search results, raw index/article HTML, parsed pages and immutable opaque button mappings, **not Discord interaction tokens**. A later click gets its own token. Buttons survive restart until the configured session expiration; they do not inherit the original interaction token's lifetime. Repeat a command after expiry. Controls from the retired Fandom/divinitywiki.com providers must also be recovered by repeating the command; their old cache records are not used by this pipeline. Private source content and participant ownership metadata are local runtime data: protect the data directory like private configuration.
 
-Cache hits avoid requests; identical concurrent requests share work. Empty results cache for at most 60 seconds. Failures do not become empty-result records. Refresh replaces usable data only on success; an outage returns clearly labeled **STALE** data where available. The cache retains at most 1000 entries, controls at most 20000; old controls may expire earlier if this cap is reached. Expired mappings are pruned on startup/new controls/cache writes. Stop the app before deleting the data directory to reset cache and controls. There is no startup crawl.
+Cache hits avoid requests; identical concurrent requests share work. Empty results cache for at most 60 seconds. Failures do not become empty-result records. Refresh replaces usable data only on success; an outage returns clearly labeled **STALE** data where available. The ordinary cache retains at most 1000 entries; permanent supplementary `offline:*` records are excluded from that eviction. Controls retain at most 20000 entries; old controls may expire earlier if this cap is reached. Expired mappings are pruned on startup/new controls/cache writes. Stop the app before deleting the data directory to reset cache and controls. There is no startup crawl.
 
-HTTP requests allow only dos2.wiki ordinary article URLs and fixed publisher sitemap paths, reject namespaces/query parameters and revalidate redirects. Requests are serialized with a 750 ms minimum start gap, bounded response size, timeouts and limited transient retries. The app respects blocked API/search routes and never bypasses access blocks. Diagnostics avoid identities, tokens and raw source/error dumps.
+HTTP requests allow only dos2.wiki ordinary articles/fixed sitemaps, ordinary articles and the sitemap on the specific Fextralife DOS2 host, and tightly validated read-only Larian thread/board URLs. Every redirect is revalidated. Wiki namespaces/action/query endpoints and forum posting/login/search actions are rejected. Requests are serialized with a 750 ms minimum start gap, bounded response size, timeouts and limited transient retries. The app respects blocked API/search routes and never bypasses access blocks. Diagnostics avoid identities, tokens and raw source/error dumps.
 
 ## Checks and safe publication
 
@@ -112,6 +114,7 @@ npm ci
 npm run lint
 npm test
 npm run check-sources
+node scripts/check-supplementary.js
 node scripts/setup-scanner.js
 npm run check-publication
 ```

@@ -79,14 +79,22 @@ export function detailView(store, entry, record, owner, { section = 0, sectionKe
         nav.push(button(store, 'More sections', { ...state, topicPage: topicPage + 1 }));
     }
 
+    if (results.length) {
+        nav.push(button(store, 'Back to results', { kind: 'list', results, owner, page: 0 }));
+    }
+
     if (nav.length) {
         components.push(row(nav));
     }
 
-    const actions = [button(store, 'Refresh', { ...state, refresh: true }), { type: 2, style: 5, label: 'Wiki source', url: record.url }];
+    const actions = [button(store, 'Refresh', { ...state, refresh: true }), { type: 2, style: 5, label: entry.provider === 'larian' ? 'Forum source' : 'Wiki source', url: record.url }];
 
-    if (results.length) {
-        actions.push(button(store, 'Back to results', { kind: 'list', results, owner, page: 0 }));
+    if (entry.provider !== 'larian') {
+        actions.push(button(store, 'Forum discussions', { kind: 'forum', entry, owner }));
+    }
+
+    if (entry.provider !== 'fextralife') {
+        actions.push(button(store, 'Fextralife lookup', { kind: 'fextralife', entry, owner }));
     }
 
     if (!owner && record.sections.some((part) => storySection(record, part))) {

@@ -1,5 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { sitemapPath } from './catalog.js';
+import { fextraUrl } from './fextralife.js';
+import { forumUrl } from './forum.js';
 
 /** Fixed-host HTTP queue; redirects are revalidated before any subsequent request. */
 export class Http {
@@ -40,7 +42,11 @@ export class Http {
         let url = new URL(input);
 
         for (let attempt = 0; attempt < 3; attempt++) {
-            if (url.hostname !== 'dos2.wiki' || url.protocol !== 'https:' || url.port || url.username || url.password || url.search || !(sitemapPath(url.pathname) || /^\/wiki\/[^\x00-\x1F#/:?\\]+$/.test(decodeURIComponent(url.pathname)))) {
+            const wiki = url.hostname === 'dos2.wiki' && url.protocol === 'https:' && !url.port && !url.username && !url.password && !url.search && (sitemapPath(url.pathname) || /^\/wiki\/[^\x00-\x1F#/:?\\]+$/.test(decodeURIComponent(url.pathname)));
+
+            const fextra = url.href === 'https://divinityoriginalsin2.wiki.fextralife.com/sitemap.xml' || Boolean(fextraUrl(url.href));
+
+            if (!wiki && !forumUrl(url.href) && !fextra) {
                 throw new Error('Source URL rejected.');
             }
 

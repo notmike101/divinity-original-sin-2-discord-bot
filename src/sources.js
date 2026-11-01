@@ -1,5 +1,7 @@
 import { titleCatalog } from './catalog.js';
 import { PARSER_VERSION } from './domain.js';
+import { Fextralife } from './fextralife.js';
+import { Forum } from './forum.js';
 import { expand, normalize, rank, matches, SEARCH_VERSION } from './search.js';
 import { verify } from './verification.js';
 import { document, links, provider, articleUrl, parseArticle } from './wiki-pages.js';
@@ -96,6 +98,8 @@ export class Dos2Wiki {
 export class Lookup {
     constructor(store, http, cfg) {
         this.store = store; this.cfg = cfg; this.adapter = new Dos2Wiki(store, http, cfg);
+        this.forum = new Forum(store, http, cfg);
+        this.fextralife = new Fextralife(store, http);
     }
 
     search(query, category = 'all', refresh = false) {
@@ -138,6 +142,14 @@ export class Lookup {
     }
 
     detail(entry, refresh = false) {
+        if (entry.provider === 'fextralife') {
+            return this.fextralife.detail(entry, refresh);
+        }
+
+        if (entry.provider === 'larian') {
+            return this.forum.detail(entry, refresh);
+        }
+
         if (entry.provider !== provider.id || articleUrl(provider, entry.title) !== entry.url) {
             throw new Error('Source changed or invalid entry. Repeat /dos2 search.');
         }

@@ -4,7 +4,7 @@ import { categories } from './domain.js';
 export const command = {
     name: 'dos2', description: 'Search Divinity: Original Sin 2 references', type: 1,
     integration_types: [1], contexts: [2],
-    options: ['search', 'craft', 'skill', 'item', 'help'].map((name) => ({
+    options: ['search', 'craft', 'skill', 'item', 'forum', 'fextralife', 'help'].map((name) => ({
         type: 1, name, description: name === 'help' ? 'Help and spoiler rules' : `Find ${name === 'search' ? 'reference entries' : `${name} entries`}`,
         ...(name === 'help'
             ? {}
@@ -16,7 +16,7 @@ export const command = {
                 }),
     })),
 };
-export const help = `Use /dos2 search query:<text> category:<optional choice>, /dos2 craft, /dos2 skill, or /dos2 item.
+export const help = `Use /dos2 search query:<text> category:<optional choice>, /dos2 craft, /dos2 skill, or /dos2 item. Use /dos2 forum query:<topic or Larian thread URL> for community discussions, or /dos2 fextralife query:<name> for supplementary wiki details. Both cache locally without automatic refetch; Refresh explicitly requests an update. Forum coverage is curated threads plus cached recent DOS2 topics, not full forum search; DE applicability is unverified.
 Categories: crafting includes recipes and ingredient acquisition; skills includes spells and statuses; items includes equipment and vendors; quests includes NPCs and locations; mechanics includes rules. Categories prefer matches rather than hiding useful cross-topic entries.
 Partial names, reordered words and common typos work: try conjur incarnte, elementl totem skillbok, summoning book, or teleport gloves. Pick a numbered result to open a card with stats, recipes and acquisition. Use its section dropdown for complete details and ingredient links for related items.
 Routine item/skill names, recipes, costs, stats and ordinary acquisition information are shared. Story entries and narrative sections use Reveal for a private view. Mixed articles show routine sections first. Private navigation stays private. Source metadata and section rules guide disclosure; there is no automatic story/Act understanding. Edition uncertainty is shown on each article. Linked pages retain their own evidence; no save or merchant-stock knowledge.

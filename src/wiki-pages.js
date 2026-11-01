@@ -66,7 +66,7 @@ export function links($, root) {
 }
 
 /** Preserve every table cell and carry row-span ingredient alternatives forward. */
-function tableRows($, table) {
+export function tableRows($, table) {
     const spans = []; const rows = [];
 
     table.find('tr').each((_, tr) => {

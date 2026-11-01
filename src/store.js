@@ -18,7 +18,7 @@ export class Store {
 
     clean() {
         this.db.prepare('DELETE FROM controls WHERE expires < ?').run(Date.now());
-        this.db.exec(`DELETE FROM cache WHERE key IN (SELECT key FROM cache ORDER BY at DESC LIMIT -1 OFFSET 1000);
+        this.db.exec(`DELETE FROM cache WHERE key IN (SELECT key FROM cache WHERE key NOT LIKE 'offline:%' ORDER BY at DESC LIMIT -1 OFFSET 1000);
       DELETE FROM controls WHERE id IN (SELECT id FROM controls ORDER BY expires DESC LIMIT -1 OFFSET 20000);`);
     }
 
