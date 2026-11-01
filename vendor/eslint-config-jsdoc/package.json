@@ -1,0 +1,25 @@
+{
+  "name": "@notmike101/eslint-config-jsdoc",
+  "version": "1.0.1",
+  "private": true,
+  "main": "index.js",
+  "author": "Mike Orozco <me@mikeorozco.dev>",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./required": "./required.js",
+    "./syntax": "./syntax.js"
+  },
+  "files": [
+    "index.js",
+    "required.js",
+    "syntax.js"
+  ],
+  "peerDependencies": {
+    "eslint": ">= 9.39.4",
+    "eslint-plugin-jsdoc": ">= 62.9.0"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24.0.0"
+  }
+}

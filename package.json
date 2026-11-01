@@ -1,0 +1,34 @@
+{
+  "name": "dos2-discord-companion",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "26.13.x"
+  },
+  "scripts": {
+    "start": "node src/main.js",
+    "register-commands": "node scripts/register.js",
+    "install-link": "node scripts/install-link.js",
+    "check-sources": "node scripts/check-sources.js",
+    "check-publication": "node scripts/check-publication.js",
+    "test": "node --test",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "discord.js": "14.27.0",
+    "cheerio": "1.1.2"
+  },
+  "devDependencies": {
+    "@notmike101/eslint-config-js": "file:vendor/eslint-config-js",
+    "@notmike101/eslint-config-jsdoc": "file:vendor/eslint-config-jsdoc",
+    "eslint": "9.39.5",
+    "@eslint/js": "9.39.4",
+    "@stylistic/eslint-plugin": "5.10.0",
+    "eslint-plugin-import": "2.32.0",
+    "eslint-plugin-sort-class-members": "1.22.1",
+    "eslint-plugin-unicorn": "64.0.0",
+    "globals": "17.5.0",
+    "eslint-plugin-jsdoc": "62.9.0"
+  }
+}
