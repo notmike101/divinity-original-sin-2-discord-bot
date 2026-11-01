@@ -39,7 +39,7 @@ export class Http {
         let url = new URL(input);
 
         for (let attempt = 0; attempt < 3; attempt++) {
-            if (url.hostname !== 'dos2.wiki' || url.protocol !== 'https:' || url.port || url.username || url.password || url.search || !/^\/wiki\/[^:]+$/.test(decodeURIComponent(url.pathname))) {
+            if (url.hostname !== 'dos2.wiki' || url.protocol !== 'https:' || url.port || url.username || url.password || url.search || !/^\/wiki\/[^\x00-\x1F#/:?\\]+$/.test(decodeURIComponent(url.pathname))) {
                 throw new Error('Source URL rejected.');
             }
 

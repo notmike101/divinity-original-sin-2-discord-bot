@@ -138,7 +138,7 @@ test('unknown queries stay empty and invalid queries cannot become network reque
 test('HTTP rejects namespaces, search/API URLs, encoded namespaces, credentials and host-changing redirects', async (t) => {
     const http = new Http();
 
-    for (const url of ['https://dos2.wiki/w/api.php', 'https://dos2.wiki/wiki/Test?search=foo', 'https://dos2.wiki/wiki/File%3ATest', 'https://u:p@dos2.wiki/wiki/Test', 'https://divinity.fandom.com/api.php']) {
+    for (const url of ['https://dos2.wiki/w/api.php', 'https://dos2.wiki/wiki/Test?search=foo', 'https://dos2.wiki/wiki/File%3ATest', 'https://dos2.wiki/wiki/%2E%2E%2Fw%2Fapi.php', 'https://u:p@dos2.wiki/wiki/Test', 'https://divinity.fandom.com/api.php']) {
         await assert.rejects(http.request(url), /rejected/);
     }
 
