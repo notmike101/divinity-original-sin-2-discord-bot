@@ -41,7 +41,7 @@ npm start
 
 Both hosts use identical npm scripts and application code. Stop with **Ctrl+C**. Shutdown disconnects the Gateway, waits for pending cache work, then closes SQLite. Relative data paths are resolved beside `package.json`, including paths containing spaces; running `node /path/to/checkout/src/main.js` from another directory works. Do not run two Discord processes for the same application at once.
 
-**Actual verification:** Windows 11 Pro x64, OS version **10.0.26300**, Node **v26.13.0**. See [verification.md](docs/verification.md) for commands and current limitations. Ubuntu native execution has not been tested locally; the included GitHub Actions Windows/Ubuntu matrix provides reproducible checks once pushed. Docker tests are not used as a substitute.
+**Actual verification:** Windows 11 Pro x64, OS version **10.0.26300**, Node **v26.13.0**. See [verification.md](docs/verification.md) for commands and current limitations. Native GitHub-hosted checks also passed on Ubuntu 24.04.5 LTS and Windows Server 2025 (10.0.26100), both with Node 26.13.0: npm ci, scanner setup, lint, and all 17 tests. See the linked verification report for the exact CI run. Docker tests are not used as a substitute.
 
 ## Discord application and both accounts
 

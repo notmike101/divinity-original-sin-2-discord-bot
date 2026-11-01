@@ -11,7 +11,18 @@
 - Gitleaks **8.30.1**, official release checksum verified. Publication integration tests deliberately place synthetic private values in staged content, a deleted historical file and a commit message, then require a redacted rejection.
 - `npm audit --omit=dev`: zero production vulnerabilities at verification time. The pinned upstream-compatible lint toolchain reports development-only advisories and ESLint 9's support notice.
 
-Native Ubuntu is unavailable in this workspace. The CI workflow targets Windows and Ubuntu with Node 26.13.0, npm ci, lint and tests, installing the same checksum-verified scanner. CI status must be read from an actual remote run; the workflow's existence is not a passing CI result.
+## Verified native GitHub-hosted CI
+
+[Native checks run 41336261944](https://github.com/notmike101/divinity-2-discord-bot/actions/runs/41336261944) passed on 2026-11-01 for implementation commit `f5fb3ea43e00272cbce4e7cc0912e3e775577c43`. Both jobs used Node **v26.13.0**, ran npm ci, installed the checksum-verified Gitleaks scanner, passed lint, and passed **17 tests with zero skipped**.
+
+| Host | OS version | Result |
+| --- | --- | --- |
+| Windows GitHub runner | Windows Server 2025 Datacenter, 10.0.26100 | Passed |
+| Ubuntu GitHub runner | Ubuntu 24.04.5 LTS | Passed |
+
+These are native hosted-runner checks, not Docker results. They verify dependency loading, persistence and deterministic interaction/parser tests on both platforms. Live source retrieval and actual Discord Gateway login were checked on the local Windows host; they were not exercised by CI. Native Ubuntu startup with real Discord credentials and the two-account DM checklist remain unperformed.
+
+The implementation is published on main in the target repository. CI emits a non-failing warning about the v4 setup/checkout actions' Node runtime; the application itself ran on the pinned Node 26.13.0.
 
 To reproduce on Ubuntu 24.04 LTS, install Node 26.13.0 and Git, then run:
 
