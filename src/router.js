@@ -29,6 +29,21 @@ export class Limits {
 /** All callbacks use the current interaction token. Shared reveals always create new private replies. */
 export function router(cfg, store, lookup, limits = new Limits()) {
     const renderList = async (results, page = 0, owner = null, stale = false, unavailable = []) => {
+        if (results.length === 1 && lookup.detail) {
+            try {
+                const result = await lookup.detail(results[0]);
+                const card = detailView(store, results[0], result.value, owner, { stale: stale || result.stale, unavailable });
+
+                if (unavailable.length && card.embeds.length) {
+                    card.embeds[0].description += `\n\nPartial coverage: ${unavailable.join(', ')} unavailable. Stored matches are still included.`;
+                }
+
+                return card;
+            } catch {
+                return listView(store, results.map((entry) => ({ ...entry, entityType: null, sourceCategories: [] })), 0, owner, stale, unavailable);
+            }
+        }
+
         const prepared = !owner && lookup.preview ? await lookup.preview(results, page, 3) : results;
 
         return listView(store, prepared, page, owner, stale, unavailable);

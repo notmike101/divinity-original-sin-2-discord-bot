@@ -541,3 +541,53 @@ test('tabs, section-menu paging, long content and related pages fit Discord toge
     assert.ok(menu.options.some((o) => o.label === 'Effect 45'));
     assert.equal(store.read(menu.custom_id).sectionKey, store.read(more.id).sectionKey);
 });
+
+test('a single result opens directly after deferring, retains source/stale notices and falls back safely on failure', async (t) => {
+    const { store } = setup(t); const item = { ...entry('Example Potion'), entityType: 'item' }; let current; let reads = 0;
+    const lookup = {
+        async search() {
+            return { value: [item], unavailable: ['Larian forums'] };
+        }, async detail() {
+            reads++; assert.equal(current.calls[0][0], 'deferReply');
+
+            return { value: { ...article, ...item, fields: { summary: 'Restores vitality' }, sections: [{ title: 'Effects', text: 'Restores vitality' }], related: [] }, stale: true };
+        },
+    };
+
+    current = fake(); await router(cfg, store, lookup)(current);
+    const card = current.calls[1][1];
+
+    limits(card); assert.equal(card.embeds[0].title, 'Example Potion'); assert.match(display(card), /Restores vitality/);
+    assert.match(card.embeds[0].description, /Partial coverage/); assert.match(card.embeds[0].footer.text, /STALE/);
+    assert.ok(!card.components.flatMap((r) => r.components).some((c) => c.label === 'Back to results' || c.disabled));
+    assert.equal(reads, 1); assert.deepEqual(current.calls.map((c) => c[0]), ['deferReply', 'editReply']);
+    lookup.detail = async () => {
+        reads++; throw new Error('unavailable');
+    };
+
+    current = fake(); await router(cfg, store, lookup)(current);
+    assert.equal(current.calls[1][1].embeds[0].title, 'Search results'); assert.equal(reads, 2);
+});
+
+test('a single story result auto-opens only a neutral reveal gate and multiple results remain tabbed', async (t) => {
+    const { store } = setup(t); let results = [entry('SECRET_CHARACTER')]; let reads = 0;
+    const lookup = {
+        async search() {
+            return { value: results };
+        }, async detail() {
+            reads++;
+
+            return { value: { ...article, title: 'SECRET_CHARACTER', sourceCategories: ['Characters'] } };
+        },
+    };
+    let interaction = fake();
+
+    await router(cfg, store, lookup)(interaction);
+
+    assert.ok(!JSON.stringify(interaction.calls).includes('SECRET_CHARACTER'));
+    assert.match(interaction.calls[1][1].content, /Reveal it privately/);
+    assert.equal(reads, 1);
+    results = [entry('Potion A'), entry('Potion B')];
+    interaction = fake(); await router(cfg, store, lookup)(interaction);
+    assert.equal(reads, 1); assert.equal(interaction.calls[1][1].embeds[0].title, 'Search results');
+});
