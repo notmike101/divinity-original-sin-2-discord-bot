@@ -1,6 +1,6 @@
 # Current dos2.wiki source coverage
 
-The default runtime provider is **dos2.wiki**, targeting **Divinity: Original Sin 2 — Definitive Edition**. Fandom and divinitywiki.com are no longer automatic fallbacks. The earlier [source evaluation](source-evaluation.md) is historical; this note describes the implemented adapter.
+This adapter uses **dos2.wiki**, targeting **Divinity: Original Sin 2 — Definitive Edition**. Fandom and divinitywiki.com are no longer automatic fallbacks. The earlier [source evaluation](source-evaluation.md) is historical; this note describes the implemented adapter.
 
 ## Retrieval and cache
 
@@ -27,7 +27,7 @@ Parser/cache version 4 isolates this pipeline from old broad-wiki records. Exist
 
 Canonical identity, first heading, revision and article container are validated before caching. Hidden stat placeholders, scripts/styles, navigation, notice widgets, galleries and unrelated UI are removed. Paragraphs, lists and complete table cells remain. Row spans preserve alternate ingredient relationships; merged empty headers do not create ingredients. Unstated quantities stay unknown.
 
-Classic-only titles and explicitly Classic-only sections are excluded. Optional Gift Bag sections are labeled. This is explicit metadata/heading handling, not perfect semantic detection. Routine names, recipes, stats, skill effects and ordinary acquisition are shared. Narrative entries/sections use private Reveal. Source categories, entity schemas and ancestor headings guide disclosure; query categories do not. Source-only confidence is independent from spoiler visibility. Ambiguous entries remain neutral until classified.
+Classic-only titles and explicitly Classic-only sections are excluded, and optional Gift Bag sections are labeled. All story and mechanical content is displayed directly; spoiler classification and Reveal controls have been removed. Fextralife is preferred over dos2.wiki for equally relevant search results; source preference does not change DE-verification status.
 
 [DE verification](de-verification.md) documents the narrow independent check of installed DE definitions. Audited Elemental Totem/Conjure Incarnate fields and the Elemental Totem skillbook recipe must match before a refreshed page is accepted. Only listed fields receive a verified-facts section. Other source claims are not silently promoted to verified status.
 
@@ -61,4 +61,4 @@ The dos2-*.html fixtures were retrieved from the correspondingly named dos2.wiki
 
 The wiki is in preview and some prose imports Fandom. Future template changes, missing links, source inaccuracies and uncertain edition provenance remain possible. The app does not certify the entire wiki or current gameplay state. Separately attributed Larian forum and Fextralife integrations are documented in [supplementary sources](supplementary-sources.md), including the user-confirmed Fextralife permission and persistent offline cache. Supplementary claims do not replace these audited fields.
 
-The visible five result candidates are hydrated on demand before rendering shared titles. Unknown related entries use neutral previews; their fetched details are checked again before rendering. Public navigation updates the shared card, while every private reveal/navigation stays owner-scoped. Old private controls remain private after the policy change; repeat the search to obtain new shared controls.
+The visible five result candidates are hydrated on demand for source metadata. All result names and related-link labels are shown. Navigation edits the current message. Existing private controls retain their ownership and privacy; new searches require no Reveal step.

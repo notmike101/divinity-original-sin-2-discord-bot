@@ -7,7 +7,6 @@ import { EmbedBuilder } from 'discord.js';
 import { Forum, forumUrl, parseThread, boardTopics } from '../src/forum.js';
 import { Http } from '../src/http.js';
 import { detailView } from '../src/render.js';
-import { mechanical, storySection } from '../src/spoilers.js';
 import { Store } from '../src/store.js';
 
 const url = 'https://forums.larian.com/ubbthreads.php?ubb=showflat&Number=656574&page=1';
@@ -50,19 +49,8 @@ test('forum parser preserves all dated posts including staff markup, quotes and 
     assert.equal(parsed.fields.type, 'Forum discussion');
     assert.equal(parsed.verification, undefined);
     assert.ok(parsed.contentHash.length === 64);
-    assert.equal(mechanical(parsed), true);
     assert.throws(() => parseThread(thread(post(1, 'Wrong game'), 90), url), /outside/);
     assert.throws(() => parseThread('<title>Challenge</title>', url), /outside/);
-});
-
-test('forum story topics and embedded spoilers remain private, ordinary mechanical posts remain shared', () => {
-    const parsed = parseThread(thread(post(656_574, 'A routine crafting note') + post(2, '<div class="spoiler">Hidden outcome</div>')), url);
-
-    assert.equal(storySection(parsed, parsed.sections[0]), false);
-    assert.equal(storySection(parsed, parsed.sections[1]), true);
-    const story = parseThread(thread(post(656_574, 'Hidden outcome'), 67, 'Quest endings [Spoilers]'), url);
-
-    assert.equal(mechanical(story), false);
 });
 
 test('targeted forum discovery excludes irrelevant titles and cache persists offline with complete raw posts', async (t) => {

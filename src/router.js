@@ -2,7 +2,6 @@ import { MessageFlags } from 'discord.js';
 import { help } from './commands.js';
 import { permitted } from './config.js';
 import { listView, detailView, payload } from './render.js';
-import { mechanical } from './spoilers.js';
 
 /** Fixed-window limits apply to every actor and the whole local instance. */
 export class Limits {
@@ -26,7 +25,7 @@ export class Limits {
         return true;
     }
 }
-/** All callbacks use the current interaction token. Shared reveals always create new private replies. */
+/** Navigation updates its existing message; legacy private messages retain their ownership. */
 export function router(cfg, store, lookup, limits = new Limits()) {
     const renderList = async (results, page = 0, owner = null, stale = false, unavailable = []) => {
         if (results.length === 1 && lookup.detail) {
@@ -114,7 +113,7 @@ export function router(cfg, store, lookup, limits = new Limits()) {
             }
 
             if (state.owner && state.owner !== interaction.user.id) {
-                return await reject('This private view belongs to another user. Click Reveal on the shared list for your own view.');
+                return await reject('This private view belongs to another user. Run /dos2 search for your own view.');
             }
 
             if (state.kind === 'result') {
@@ -136,25 +135,17 @@ export function router(cfg, store, lookup, limits = new Limits()) {
             }
 
             if (state.kind === 'list') {
-                const owner = state.owner || state.revealList ? interaction.user.id : null;
+                const owner = state.owner || null;
 
-                if (state.revealList) {
-                    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-                } else {
-                    await interaction.deferUpdate();
-                }
+                await interaction.deferUpdate();
 
                 return await interaction.editReply(await renderList(state.results, state.page, owner, state.stale, state.unavailable));
             }
 
             if (['forum', 'fextralife'].includes(state.kind)) {
-                const owner = state.owner || !mechanical(state.entry) ? interaction.user.id : null;
+                const owner = state.owner || null;
 
-                if (owner && !state.owner) {
-                    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-                } else {
-                    await interaction.deferUpdate();
-                }
+                await interaction.deferUpdate();
 
                 const result = await lookup[state.kind].search(state.entry.title);
 
@@ -193,17 +184,11 @@ export function router(cfg, store, lookup, limits = new Limits()) {
                 entry = { ...state.related[Number(selected)], provider: state.provider };
             }
 
-            const privateView = Boolean(state.owner || state.reveal || !(state.preview || mechanical(entry)));
-
-            if (privateView && !(state.owner && !state.reveal)) {
-                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-            } else {
-                await interaction.deferUpdate();
-            }
+            await interaction.deferUpdate();
 
             const result = await lookup.detail(entry, state.refresh);
 
-            return await interaction.editReply(detailView(store, entry, result.value, privateView ? interaction.user.id : null, { ...state, stale: result.stale }));
+            return await interaction.editReply(detailView(store, entry, result.value, state.owner || null, { ...state, stale: result.stale }));
         } catch {
             // Never log source prose, tokens, actor identities, or raw library error objects.
             console.error('Interaction failed (details redacted).');

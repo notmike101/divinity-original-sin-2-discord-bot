@@ -174,13 +174,13 @@ test('opaque immutable controls survive restart; expiry and malformed callbacks 
     assert.equal(store.read('d2:https://evil.example'), null);
     store.db.prepare('UPDATE controls SET expires=0 WHERE id=?').run(id); assert.equal(store.read(id), null);
 });
-test('shared outgoing payloads contain no titles, prose, source URLs or hidden metadata', (t) => {
+test('shared results display all titles while keeping control metadata opaque', (t) => {
     const { store } = setup(t); const shared = listView(store, records);
 
     limits(shared);
     const serialized = JSON.stringify(shared);
 
-    assert.ok(!serialized.includes('Secret')); assert.ok(!serialized.includes('https:'));
+    assert.ok(serialized.includes('Secret')); assert.ok(!serialized.includes('https:'));
     const before = store.read(shared.components[0].components[0].custom_id);
 
     listView(store, records, 1);
@@ -199,7 +199,7 @@ test('all detail chunks and controls fit Discord and preserve complete escaped s
 
     assert.equal(full, safe(article.sections[0].text)); assert.ok(!full.includes('@everyone')); assert.ok(!full.includes('https://example.com'));
 });
-test('both allowed actors can command and click shared Reveal; defer happens before slow work', async (t) => {
+test('both allowed actors can select narrative results in place after deferring', async (t) => {
     const { store } = setup(t);
     let current;
     const lookup = {
@@ -208,7 +208,7 @@ test('both allowed actors can command and click shared Reveal; defer happens bef
 
             return { value: records };
         }, async detail() {
-            assert.deepEqual(current.calls[0], ['deferReply', { flags: 64 }]);
+            assert.deepEqual(current.calls[0], ['deferUpdate']);
 
             return { value: article };
         },
@@ -218,14 +218,14 @@ test('both allowed actors can command and click shared Reveal; defer happens bef
 
     for (const user of [alice, bob]) {
         current = fake(user); await route(current); assert.equal(current.calls.length, 2);
-        current = fake(user, 'button', id); current.values = ['0']; await route(current); assert.equal(current.calls[0][1].flags, 64);
-        assert.equal(current.calls.length, 2); assert.equal(current.ephemeral, true);
-        const privatePayload = current.calls[1][1];
+        current = fake(user, 'button', id); current.values = ['0']; await route(current); assert.equal(current.calls[0][0], 'deferUpdate');
+        assert.equal(current.calls.length, 2); assert.equal(current.ephemeral, false);
+        const sharedPayload = current.calls[1][1];
 
-        for (const row of privatePayload.components) {
+        for (const row of sharedPayload.components) {
             for (const control of row.components) {
                 if (control.custom_id) {
-                    assert.equal(store.read(control.custom_id).owner, user);
+                    assert.equal(store.read(control.custom_id).owner, null);
                 }
             }
         }
@@ -275,14 +275,14 @@ test('private list, section, pagination, related, refresh and errors stay epheme
     })(bad);
     assert.equal(bad.ephemeral, true); assert.ok(!JSON.stringify(bad.calls).includes('Secret story'));
 });
-test('shared pagination updates shared message without leaking titles; malformed buttons are private errors', async (t) => {
+test('shared pagination shows narrative titles in place; malformed buttons are private errors', async (t) => {
     const { store } = setup(t); const route = router(cfg, store, {});
     const shared = listView(store, records); const next = shared.components[0].components[0].custom_id;
     const click = fake(bob, 'button', next);
 
     click.values = [shared.components[0].components[0].options.find((o) => o.label === 'More results →').value];
     await route(click);
-    assert.equal(click.calls[0][0], 'deferUpdate'); assert.ok(!JSON.stringify(click.calls).includes('Secret story'));
+    assert.equal(click.calls[0][0], 'deferUpdate'); assert.ok(JSON.stringify(click.calls).includes('Secret story'));
     const bad = fake(alice, 'button', 'malformed');
 
     await route(bad); assert.equal(bad.calls[0][1].flags, 64);
@@ -340,85 +340,6 @@ test('routine names, recipes, stats and ordinary acquisition are shared for both
         current = fake(user, 'button', next.id); current.values = [next.value]; await route(current); assert.equal(current.calls[0][0], 'deferUpdate'); assert.match(display(current.calls[1][1]), /Fort Joy/);
     }
 });
-test('mixed articles share routine sections and reveal narrative sections in a new private flow', async (t) => {
-    const { store } = setup(t); const item = { ...entry('Example Potion'), entityType: 'item', sourceCategories: ['Potions'] };
-    const record = { ...article, ...item, sections: [{ title: 'Effects', text: 'Restores 30 vitality.' }, { title: 'Quest outcome SECRET_HEADING', text: 'SECRET_PLOT and the ending.' }, { title: 'Recipe', text: 'Bottle + ingredient' }], related: [{ ...entry('SECRET_CHARACTER'), sourceCategories: ['Characters'] }] };
-    const publicView = detailView(store, item, record, null);
-
-    limits(publicView); assert.match(display(publicView), /Restores 30/); assert.ok(!JSON.stringify(publicView).includes('SECRET'));
-    const reveal = publicView.components.flatMap((row) => row.components).find((c) => c.label === 'Reveal story details');
-
-    assert.ok(reveal);
-    const lookup = {
-        async detail() {
-            return { value: record };
-        },
-    }; const route = router(cfg, store, lookup);
-    const click = fake(bob, 'button', reveal.custom_id);
-
-    await route(click); assert.deepEqual(click.calls[0], ['deferReply', { flags: 64 }]);
-    const next = selectSection(click.calls[1][1], 'Quest outcome SECRET_HEADING');
-    const nextClick = fake(bob, 'button', next.id, true);
-
-    nextClick.values = [next.value];
-
-    await route(nextClick); assert.equal(nextClick.ephemeral, true); assert.ok(display(nextClick.calls[1][1]).includes(safe('SECRET_PLOT')));
-    const wrongActor = fake(alice, 'button', next.id);
-
-    await route(wrongActor); assert.match(wrongActor.calls[0][1].content, /belongs to another/);
-});
-test('changed source metadata cannot publish a story through a previously public control', async (t) => {
-    const { store } = setup(t); const item = { ...entry('Example Potion'), entityType: 'item' };
-    const record = { ...article, ...entry('SECRET_STORY_TITLE'), sourceCategories: ['Quests'], sections: [{ title: 'Ending', text: 'SECRET_PLOT' }], related: [] };
-    const state = store.control({ kind: 'detail', entry: item, owner: null, refresh: true }); const click = fake(alice, 'button', state);
-
-    await router(cfg, store, {
-        async detail() {
-            return { value: record };
-        },
-    })(click);
-    assert.deepEqual(click.calls[0], ['deferUpdate']); assert.ok(!JSON.stringify(click.calls).includes('SECRET'));
-    assert.match(click.calls[1][1].content, /story content/);
-});
-test('search preview uses source metadata after deferring and ignores the requested category for disclosure', async (t) => {
-    const { store } = setup(t); const result = { ...entry('SECRET_QUEST_TITLE'), categories: ['skills'] }; const interaction = fake(alice);
-    const lookup = {
-        async search() {
-            return { value: [result] };
-        }, async preview(results) {
-            assert.equal(interaction.calls[0][0], 'deferReply');
-
-            return results.map((entry) => ({ ...entry, entityType: 'item', sourceCategories: ['Quests'] }));
-        },
-    };
-
-    interaction.options.getSubcommand = () => 'skill'; await router(cfg, store, lookup)(interaction);
-    assert.ok(!JSON.stringify(interaction.calls).includes('SECRET_QUEST_TITLE')); assert.match(display(interaction.calls[1][1]), /Reveal privately/);
-});
-
-test('nested narrative context stays hidden and public related previews cannot reveal story text', async (t) => {
-    const { store } = setup(t); const item = { ...entry('Example Potion'), entityType: 'item' };
-    const record = { ...article, ...item, sections: [{ title: 'Effects', text: 'Restores vitality' }, { title: 'Choice one', headings: ['Quest outcomes', 'Choice one'], text: 'SECRET_RESOLUTION' }], related: [entry('SECRET_NPC')] };
-    const shared = detailView(store, item, record, null);
-
-    assert.ok(!JSON.stringify(shared).includes('SECRET'));
-    const select = shared.components.flatMap((row) => row.components).find((c) => c.type === 3 && c.placeholder.startsWith('Look up'));
-
-    assert.ok(select); assert.match(select.options[0].label, /preview/);
-    const click = fake(bob, 'button', select.custom_id);
-
-    click.values = ['0'];
-    const story = { ...article, sourceCategories: ['Characters'], title: 'SECRET_NPC' };
-
-    await router(cfg, store, {
-        async detail() {
-            return { value: story };
-        },
-    })(click);
-    assert.equal(click.calls[0][0], 'deferUpdate'); assert.ok(!JSON.stringify(click.calls).includes('SECRET'));
-    assert.match(click.calls[1][1].content, /Reveal it privately/);
-});
-
 test('section selection stays on the same topic when source sections reorder; invalid selections fail privately', async (t) => {
     const { store } = setup(t); const record = { ...article, ...entry('Example Potion'), entityType: 'item', sections: [{ title: 'Effects', text: 'Restores vitality' }, { title: 'Crafting', text: 'Ingredient A + Ingredient B' }], related: [] };
     const original = detailView(store, record, record, null); const section = selectSection(original, 'Crafting recipe');
@@ -570,7 +491,7 @@ test('a single result opens directly after deferring, retains source/stale notic
     assert.equal(current.calls[1][1].embeds[0].title, 'Search results'); assert.equal(reads, 2);
 });
 
-test('a single story result auto-opens only a neutral reveal gate and multiple results use a dropdown', async (t) => {
+test('a single narrative result opens directly and multiple results use a dropdown', async (t) => {
     const { store } = setup(t); let results = [entry('SECRET_CHARACTER')]; let reads = 0;
     const lookup = {
         async search() {
@@ -585,8 +506,8 @@ test('a single story result auto-opens only a neutral reveal gate and multiple r
 
     await router(cfg, store, lookup)(interaction);
 
-    assert.ok(!JSON.stringify(interaction.calls).includes('SECRET_CHARACTER'));
-    assert.match(interaction.calls[1][1].content, /Reveal it privately/);
+    assert.ok(display(interaction.calls[1][1]).includes(safe('SECRET_CHARACTER')));
+    assert.equal(interaction.calls[1][1].embeds[0].title, safe('SECRET_CHARACTER'));
     assert.equal(reads, 1);
     results = [entry('Potion A'), entry('Potion B')];
     interaction = fake(); await router(cfg, store, lookup)(interaction);
@@ -623,4 +544,42 @@ test('result dropdown selections reject invalid options and preserve private own
     assert.match(own.calls[1][1].embeds[0].author.name, /Fextralife/);
     assert.equal(own.calls[1][1].components[0].components[0].options.filter((o) => o.default).length, 1);
     limits(own.calls[1][1]);
+});
+
+test('narrative summaries, recipes, locations, links and sections display directly with no reveal controls', async (t) => {
+    const { store } = setup(t); const item = { ...entry('Quest Ending'), sourceCategories: ['Quests'] };
+    const record = { ...article, ...item, fields: { summary: 'The story reveals a betrayal.' }, recipes: [{ output: 'Quest Ending', ingredients: ['Quest relic'], conditions: 'After the ending', headings: ['Quest outcome'] }], usedIn: [{ output: 'Secret reward', ingredients: ['Quest relic'], headings: ['Quest outcome'] }], sections: [{ title: 'Overview', text: 'The story reveals a betrayal.' }, { title: 'Locations', text: 'The quest ends in the hidden vault.' }, { title: 'Quest outcome', headings: ['Story'], text: 'The companion betrays the party.' }], related: [entry('Secret companion')] };
+    const card = detailView(store, item, record, null, { results: [item, entry('Other ending')] });
+
+    limits(card); assert.match(display(card), /betrayal/); assert.match(display(card), /Quest relic/); assert.match(display(card), /Secret reward/); assert.match(display(card), /hidden vault/);
+    assert.ok(!card.components.flatMap((r) => r.components).some((c) => c.label?.startsWith('Reveal')));
+    const related = card.components.flatMap((r) => r.components).find((c) => c.placeholder?.startsWith('Look up'));
+
+    assert.equal(related.options[0].label, 'Secret companion');
+    const section = selectSection(card, 'Quest outcome'); const click = fake(bob, 'button', section.id);
+
+    click.values = [section.value]; await router(cfg, store, {
+        async detail() {
+            return { value: record };
+        },
+    })(click);
+    assert.deepEqual(click.calls.map((c) => c[0]), ['deferUpdate', 'editReply']);
+    assert.equal(click.ephemeral, false); assert.match(display(click.calls[1][1]), /betrays the party/);
+});
+
+test('legacy reveal flags no longer hide public content and existing private controls remain owner scoped', async (t) => {
+    const { store } = setup(t); const item = { ...entry('Story Ending'), sourceCategories: ['Quests'] };
+    const lookup = {
+        async detail() {
+            return { value: { ...article, ...item, fields: { summary: 'Visible ending details' } } };
+        },
+    };
+
+    for (const owner of [null, alice]) {
+        const control = store.control({ kind: 'detail', entry: item, owner, reveal: true });
+        const click = fake(alice, 'button', control, Boolean(owner));
+
+        await router(cfg, store, lookup)(click); assert.equal(click.calls[0][0], 'deferUpdate');
+        assert.equal(click.ephemeral, Boolean(owner)); assert.match(display(click.calls[1][1]), /Visible ending details/);
+    }
 });

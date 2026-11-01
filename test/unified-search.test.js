@@ -52,7 +52,7 @@ test('normal search queries all providers for every category and keeps distinct 
     for (const category of ['all', 'crafting', 'skills', 'items', 'quests', 'mechanics']) {
         const result = await lookup.search('example potion', category);
 
-        assert.deepEqual(result.value.map((e) => e.provider), ['dos2wiki', 'fextralife', 'larian']);
+        assert.deepEqual(result.value.map((e) => e.provider), ['fextralife', 'dos2wiki', 'larian']);
         assert.deepEqual(result.unavailable, []);
     }
 
@@ -82,7 +82,7 @@ test('stored body/recipe/field text is searchable across sources, immediately af
     assert.ok(result.value.every((e) => e.match === 'Stored content / topic match'));
     const shared = JSON.stringify(listView(store, result.value));
 
-    assert.ok(!shared.includes('SECRET_STORY_TITLE'));
+    assert.ok(shared.includes('SECRET'));
     assert.ok(!shared.includes('Hidden plot'));
     assert.ok(shared.includes('Fextralife DOS2 wiki'));
     assert.equal((await lookup.search('OUTDATED_SEARCH_TOKEN')).value.length, 0);

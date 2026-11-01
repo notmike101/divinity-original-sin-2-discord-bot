@@ -99,10 +99,13 @@ export function rank(query, entries, category = 'all') {
     return [...new Map(entries.map((entry) => [entry.url, entry])).values()].map((entry) => {
         const value = Math.max(...variants.map((form) => score(form, entry.title)));
         const exact = normalize(entry.title) === q;
-        const preferred = category !== 'all' && entry.categories?.includes(category);
+        const preferred = category !== 'all' && Boolean(entry.categories?.includes(category));
 
-        return { entry: { ...entry, match: exact ? 'Exact name' : value >= 6_000 ? 'Partial name' : 'Close match' }, score: (exact ? 11_000 : value) + (preferred ? 50 : 0) };
-    }).sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title)).map((result) => result.entry);
+        return { entry: { ...entry, match: exact ? 'Exact name' : value >= 6_000 ? 'Partial name' : 'Close match' }, score: exact ? 11_000 : value, preferred };
+    }).sort((a, b) => b.score - a.score
+        || ({ fextralife: 0, dos2wiki: 1, larian: 2 }[a.entry.provider] ?? 3) - ({ fextralife: 0, dos2wiki: 1, larian: 2 }[b.entry.provider] ?? 3)
+        || Number(b.preferred) - Number(a.preferred)
+        || a.entry.title.localeCompare(b.entry.title)).map((result) => result.entry);
 }
 
 export const matches = (query, title) => forms(query).some((form) => score(form, title) > 0);

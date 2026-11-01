@@ -17,6 +17,21 @@ const names = ['Conjure Incarnate', 'Conjure Incarnate Skillbook', 'Elemental To
 const entries = names.map((title) => ({ title, url: `https://dos2.wiki/wiki/${title.replaceAll(' ', '_')}` }));
 const search = (query) => rank(query, entries.filter((entry) => matches(query, entry.title)));
 
+test('equally relevant sources prefer Fextralife even when another source has category hints; exact matches still lead', () => {
+    const candidates = [
+        { title: 'Time Warp', url: 'https://dos2.wiki/wiki/Time_Warp', provider: 'dos2wiki', categories: ['skills'] },
+        { title: 'Time Warp', url: 'https://divinityoriginalsin2.wiki.fextralife.com/Time_Warp', provider: 'fextralife' },
+        { title: 'Time Warp', url: 'https://forums.larian.com/ubbthreads.php?ubb=showflat&Number=1', provider: 'larian' },
+    ];
+
+    assert.deepEqual(rank('Time Warp', candidates, 'skills').map((e) => e.provider), ['fextralife', 'dos2wiki', 'larian']);
+    candidates[1].title = 'Time Warp Scroll';
+    assert.equal(rank('Time Warp', candidates, 'skills')[0].provider, 'dos2wiki');
+    const sameSource = [{ ...candidates[0], url: 'unclassified', categories: undefined }, { ...candidates[0], url: 'preferred' }];
+
+    assert.equal(rank('Time Warp', sameSource, 'skills')[0].url, 'preferred');
+});
+
 function setup(t) {
     const dir = mkdtempSync(join(tmpdir(), 'dos2 fuzzy cards ')); const store = new Store(dir);
 

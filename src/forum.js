@@ -41,7 +41,6 @@ export function forumUrl(input) {
 }
 
 const entry = (title, url) => ({ title, url, provider: forumProvider.id, source: forumProvider.name });
-const routine = (title) => !/spoiler|quest|ending|story|walkthrough/i.test(title) && /craft|recipe|skill|summon|armou?r|damage|rune|arrow|potion|reactive shot|gift bag|combat|attribute/i.test(title);
 
 export function boardTopics(html, board) {
     const $ = load(html);
@@ -97,7 +96,6 @@ export function parseThread(html, input, retrievedAt = new Date().toISOString())
         const author = tidy(table.find('.author-name .username').first().text()) || tidy(table.find('.author-name').first().text()).replace(/\s+OP$/, '') || 'Unknown author';
         const date = tidy(table.find('.subjecttable .date').first().text()) || 'Date unknown';
         const time = tidy(table.find('.subjecttable .time').first().text());
-        const spoiler = body.find('[class*="spoiler"]').length > 0;
 
         body.find('script,style,.signature,.spoiler-toggle').remove();
         body.find('blockquote,.ubbcode-block').each((_, quote) => {
@@ -107,7 +105,7 @@ export function parseThread(html, input, retrievedAt = new Date().toISOString())
         const text = tidy(body.text());
 
         if (text && /^\d+$/.test(post) && author && date) {
-            sections.push({ title: `${author} · ${date}${time ? ` ${time}` : ''} · #${post}`, text: `Community report; not independently DE-verified.\n\n${text}`, headings: [title, ...(spoiler ? ['Story spoilers'] : [])], evidence: `${origin}/ubbthreads.php?ubb=showflat&Number=${post}` });
+            sections.push({ title: `${author} · ${date}${time ? ` ${time}` : ''} · #${post}`, text: `Community report; not independently DE-verified.\n\n${text}`, headings: [title], evidence: `${origin}/ubbthreads.php?ubb=showflat&Number=${post}` });
         }
     });
 
@@ -128,7 +126,7 @@ export function parseThread(html, input, retrievedAt = new Date().toISOString())
         }
     });
 
-    return { ...entry(title, url), entityType: 'discussion', sourceCategories: routine(title) ? ['mechanics'] : [], fields: { type: 'Forum discussion', summary: 'Community discussion, not a verified recipe or current bug status. Gift Bag topics describe optional content. Select a dated post below to read it. Quotes and conflicting replies remain separate.' }, sections, related: [...related.values()], retrievedAt, revision: '', contentHash: createHash('sha256').update(html).digest('hex'), parserVersion: 'forum-1', license: 'Forum authors retain their content; source attribution provided.', edition: 'DOS2 forum; DE applicability is unverified unless the individual post explicitly establishes it. Older posts may describe Classic or mods.' };
+    return { ...entry(title, url), entityType: 'discussion', sourceCategories: [], fields: { type: 'Forum discussion', summary: 'Community discussion, not a verified recipe or current bug status. Gift Bag topics describe optional content. Select a dated post below to read it. Quotes and conflicting replies remain separate.' }, sections, related: [...related.values()], retrievedAt, revision: '', contentHash: createHash('sha256').update(html).digest('hex'), parserVersion: 'forum-1', license: 'Forum authors retain their content; source attribution provided.', edition: 'DOS2 forum; DE applicability is unverified unless the individual post explicitly establishes it. Older posts may describe Classic or mods.' };
 }
 
 export class Forum {

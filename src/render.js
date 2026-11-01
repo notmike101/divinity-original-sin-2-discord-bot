@@ -1,5 +1,4 @@
 import { topics, topicLabel, detailEmbed } from './cards.js';
-import { mechanical, storySection } from './spoilers.js';
 import { safe } from './text.js';
 
 export { safe, chunks } from './text.js';
@@ -28,37 +27,27 @@ function resultMenu(store, results, owner, selected, resultPage, stale, unavaila
                 return { label: choice.page < page ? '← Previous results' : 'More results →', value: String(i) };
             }
 
-            const entry = choice.entry; const visible = owner || mechanical(entry);
+            const entry = choice.entry;
             const source = { dos2wiki: 'dos2.wiki', fextralife: 'Fextralife', larian: 'Larian forums' }[entry.provider] || 'Source';
 
-            return { label: visible ? `${safe(entry.title).slice(0, 70)} · ${source}` : `Story-related result ${i + 1} · ${source}`, description: `${safe(entry.source || 'Reference')} · ${visible ? entry.match || 'Matching entry' : 'Reveal privately'}`.slice(0, 100), value: String(i), default: entry.url === selected };
+            return { label: `${safe(entry.title).slice(0, 70)} · ${source}`, description: `${safe(entry.source || 'Reference')} · ${entry.match || 'Matching entry'}`.slice(0, 100), value: String(i), default: entry.url === selected };
         }),
     }]);
 }
 
 export const payload = (content, components = []) => ({ content, components, allowedMentions: { parse: [] }, embeds: [] });
-/** Multi-match cards keep numbers/buttons stable; narrative titles remain private. */
+/** Multi-match cards preserve immutable result identities. */
 export function listView(store, results, page = 0, owner = null, stale = false, unavailable = []) {
     const total = Math.max(1, Math.ceil(results.length / resultsPerPage));
 
     page = Math.max(0, Math.min(page, total - 1));
-    const entries = results.slice(page * resultsPerPage, (page + 1) * resultsPerPage); const state = { kind: 'list', results, owner, stale, unavailable }; const components = [];
+    const entries = results.slice(page * resultsPerPage, (page + 1) * resultsPerPage); const components = [];
 
     if (entries.length) {
         components.push(resultMenu(store, results, owner, null, page, stale, unavailable));
     }
 
-    const nav = [];
-
-    if (!owner && entries.some((entry) => !mechanical(entry))) {
-        nav.push(button(store, 'Preview story matches privately', { ...state, revealList: true, page }));
-    }
-
-    if (nav.length) {
-        components.push(row(nav));
-    }
-
-    return { ...payload('', components), embeds: [{ title: owner ? 'Private search results' : 'Search results', color: 0xB9_8D_4C, description: (entries.length ? 'Choose a result below. Similar entries and different sources are separate choices.' : 'No close matches found. Try fewer words or a different name.') + (unavailable.length ? `\nPartial coverage: ${unavailable.join(', ')} unavailable. Stored matches are still included.` : ''), fields: entries.map((entry, i) => ({ name: (owner || mechanical(entry)) ? `${i + 1}. ${safe(entry.title).slice(0, 220)}` : `${i + 1}. Story-related result`, value: `${safe(entry.source || 'Reference')} · ${(owner || mechanical(entry)) ? `${entry.match || 'Matching entry'} · ${entry.entityType || 'Reference'}` : 'Reveal privately to view its name and details.'}` })), footer: { text: `${results.length} matches · Page ${page + 1}/${total}${stale ? ' · STALE CACHE' : ''}` } }] };
+    return { ...payload('', components), embeds: [{ title: owner ? 'Private search results' : 'Search results', color: 0xB9_8D_4C, description: (entries.length ? 'Choose a result below. Similar entries and different sources are separate choices.' : 'No close matches found. Try fewer words or a different name.') + (unavailable.length ? `\nPartial coverage: ${unavailable.join(', ')} unavailable. Stored matches are still included.` : ''), fields: entries.map((entry, i) => ({ name: `${i + 1}. ${safe(entry.title).slice(0, 220)}`, value: `${safe(entry.source || 'Reference')} · ${entry.match || 'Matching entry'} · ${entry.entityType || 'Reference'}` })), footer: { text: `${results.length} matches · Page ${page + 1}/${total}${stale ? ' · STALE CACHE' : ''}` } }] };
 }
 
 /** Item-first embeds and direct section selection; all private navigation stays owner-scoped. */
@@ -66,18 +55,14 @@ export function detailView(store, entry, record, owner, { section = 0, sectionKe
     entry = { ...entry, entityType: record.entityType, sourceCategories: record.sourceCategories };
     results = results.map((candidate) => candidate.url === entry.url ? entry : candidate);
 
-    if (!owner && (!mechanical(record) || !record.sections.some((part) => !storySection(record, part)))) {
-        return payload('This entry contains story content. Reveal it privately.', [...(results.length ? [resultMenu(store, results, owner, null, resultPage, stale, unavailable)] : []), row([button(store, 'Reveal story details', { kind: 'detail', entry, owner: null, reveal: true, results, resultPage, unavailable })])]);
-    }
-
-    const sections = topics(record, owner);
+    const sections = topics(record);
 
     if (sectionKey) {
         section = Math.max(0, sections.findIndex((part) => part.key === sectionKey));
     }
 
     section = Math.max(0, Math.min(section, sections.length - 1));
-    const part = sections[section]; const card = detailEmbed(record, part, owner, page, stale);
+    const part = sections[section]; const card = detailEmbed(record, part, page, stale);
 
     page = card.page;
     topicPage = Math.max(0, Math.min(topicPage ?? Math.floor(section / 23), Math.floor((sections.length - 1) / 23)));
@@ -119,15 +104,11 @@ export function detailView(store, entry, record, owner, { section = 0, sectionKe
         actions.push(button(store, 'Fextralife lookup', { kind: 'fextralife', entry, owner, navigation: true }));
     }
 
-    if (!owner && record.sections.some((part) => storySection(record, part))) {
-        actions.push(button(store, 'Reveal story details', { kind: 'detail', entry, owner: null, reveal: true, results, resultPage, unavailable }));
-    }
-
     components.push(row(actions));
     const related = record.related.slice(relatedPage * 25, relatedPage * 25 + 25);
 
     if (related.length) {
-        components.push(row([{ type: 3, placeholder: 'Look up an ingredient or related entry', custom_id: store.control({ kind: 'related', owner, navigation: true, preview: !owner, provider: entry.provider, related, results, resultPage, unavailable }), options: related.map((link, i) => ({ label: (owner || mechanical(link)) ? safe(link.title).slice(0, 95) : `Related entry ${relatedPage * 25 + i + 1} (preview)`, value: String(i) })) }]));
+        components.push(row([{ type: 3, placeholder: 'Look up an ingredient or related entry', custom_id: store.control({ kind: 'related', owner, navigation: true, provider: entry.provider, related, results, resultPage, unavailable }), options: related.map((link, i) => ({ label: safe(link.title).slice(0, 95), value: String(i) })) }]));
         const links = [];
 
         if (relatedPage) {
