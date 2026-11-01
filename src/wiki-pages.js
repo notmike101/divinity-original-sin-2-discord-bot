@@ -120,6 +120,57 @@ export function parseArticle(html, retrievedAt = new Date().toISOString()) {
     const sourceCategories = $('#catlinks .mw-normal-catlinks a').map((_, node) => $(node).text().trim()).get().filter(Boolean);
     const entityType = box.hasClass('skill-infobox') ? 'skill' : box.hasClass('skillbook-infobox') ? 'skillbook' : box.hasClass('scroll-infobox') ? 'scroll' : null;
     const fields = {};
+    const footer = box.find('.footer-stats').last();
+
+    for (const [key, label] of Object.entries({ weight: 'Weight', value: 'Value' })) {
+        const value = tidy(footer.children('span').filter((_, e) => $(e).find(`a[title="${label}"]`).length).text());
+
+        if (value) {
+            fields[key] = value;
+        }
+    }
+
+    const level = tidy(box.find('.js-scalable-level .stat-value').first().text());
+
+    if (/^\d+$/.test(level)) {
+        fields.level = level;
+    }
+
+    const rarity = box.find('.footer-rarity').map((_, e) => tidy($(e).text())).get().find((text) => /^(?:Common|Uncommon|Rare|Epic|Legendary|Divine|Unique)$/.test(text));
+
+    if (rarity) {
+        fields.rarity = rarity;
+    }
+
+    for (const [key, label] of Object.entries({ physicalArmour: 'Physical Armour', magicArmour: 'Magic Armour' })) {
+        const value = tidy(box.find('.armour-line').text()).match(new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*${label}`));
+
+        if (value) {
+            fields[key] = value[1];
+        }
+    }
+
+    const type = tidy(box.find('.weapon-type-line').first().text());
+
+    fields.type = entityType ? entityType[0].toUpperCase() + entityType.slice(1) : type;
+    fields.summary = tidy(box.find('.infobox-skill-description-section,.infobox-description-section').first().text());
+    fields.requirements = box.find('.stat-line').map((_, e) => tidy($(e).text())).get().filter((t) => t.startsWith('Requires ')).join('; ');
+    const icon = box.find('.infobox-header-icon img').first().attr('src');
+    let image;
+
+    if (icon) {
+        try {
+            const u = new URL(icon);
+
+            if (u.origin === 'https://cdn.dos2.wiki' && u.pathname.startsWith('/w/images/') && !u.search) {
+                image = u.href;
+            }
+        } catch {
+            image = undefined;
+        }
+    }
+
+    const recipes = []; const usedIn = [];
 
     if (box.hasClass('skill-infobox')) {
         fields.actionPoints = box.find('.infobox-resource-container a[title="Action Point"]').length;
@@ -199,7 +250,21 @@ export function parseArticle(html, retrievedAt = new Date().toISOString()) {
         }
 
         if (element.tagName === 'table') {
-            for (const row of tableRows($, node)) {
+            const rows = tableRows($, node);
+
+            if (excludedDepth === null && /^Product \| Ingredients/.test(rows[0] || '')) {
+                const target = /used in/i.test(current.title) ? usedIn : recipes;
+
+                for (const row of rows.slice(1)) {
+                    const cells = row.split('|').map((t) => t.trim());
+
+                    if (cells.slice(1).some(Boolean)) {
+                        target.push({ output: cells[0] || null, ingredients: cells.slice(1).filter(Boolean), conditions: (optional ? 'OPTIONAL GIFT BAG / MOD CONTENT. ' : '') + tidy(current.text), headings: [...headings.map((h) => h.title)] });
+                    }
+                }
+            }
+
+            for (const row of rows) {
                 append(row);
             }
 
@@ -244,5 +309,5 @@ export function parseArticle(html, retrievedAt = new Date().toISOString()) {
         sections.push({ title: 'Recipe availability', text: 'No recipe found in this source. This does not prove non-craftability. Acquisition and merchant stock are unknown unless explicitly established.', evidence: 'Unknown' });
     }
 
-    return { title, url, provider: provider.id, source: provider.name, retrievedAt, parserVersion: PARSER_VERSION, revision, contentHash: createHash('sha256').update(html).digest('hex'), license: 'CC BY-SA 4.0', sourceCategories, entityType, fields, sections, related, categories: [], edition: 'DOS2 DE target; source excerpts are not independently edition-verified' };
+    return { title, url, provider: provider.id, source: provider.name, retrievedAt, parserVersion: PARSER_VERSION, revision, contentHash: createHash('sha256').update(html).digest('hex'), license: 'CC BY-SA 4.0', sourceCategories, entityType, image, recipes, usedIn, fields, sections, related, categories: [], edition: 'DOS2 DE target; source excerpts are not independently edition-verified' };
 }

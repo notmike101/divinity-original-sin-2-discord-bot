@@ -4,9 +4,9 @@ The runtime provider is **dos2.wiki**, targeting **Divinity: Original Sin 2 — 
 
 ## Retrieval and cache
 
-Only ordinary HTTPS article URLs on dos2.wiki are used. The adapter never calls API, REST, Special or search endpoints. Namespaces, query strings, foreign hosts, credentials and unsafe redirects are rejected. Requests are serialized with a 750 ms start gap, bounded queue/response sizes, timeouts and limited transient retries.
+Only ordinary HTTPS article URLs and fixed publisher sitemap paths on dos2.wiki are used. The adapter never calls API, REST, Special or search endpoints. Namespaces, query strings, foreign hosts, credentials and unsafe redirects are rejected. Requests are serialized with a 750 ms start gap, bounded queue/response sizes, timeouts and limited transient retries.
 
-Discovery combines normal title lookup with locally ranked links from these fixed indexes, fetched on demand:
+Discovery uses the publisher sitemap at https://dos2.wiki/sitemap/sitemap-index-dos2wiki.xml and its validated member files. The cached catalog contained 5,045 article titles during live verification. Exact names lead, followed by partial, reordered and bounded typo matches; every meaningful query token must match a distinct title token. Subject hints come from these fixed indexes, fetched on demand:
 
 | Category | Index articles |
 | --- | --- |
@@ -15,13 +15,13 @@ Discovery combines normal title lookup with locally ranked links from these fixe
 | Items | Items, Armour, Weapons |
 | Quests | Quests |
 | Mechanics | Physical and Magical Armor, Attributes, Combat Abilities |
-| All | Union of these indexes |
+| All | Sitemap title catalog |
 
-This is bounded discovery, not an exhaustive crawl. Related articles are fetched on demand. Exact-title candidates help find pages missing from the indexes; unknown terms are not replaced with arbitrary nearest results.
+This downloads titles, not every article. Related articles are fetched on demand. Exact-title candidates help find pages missing from the indexes; unknown terms are not replaced with arbitrary nearest results.
 
 SQLite persists raw article/index HTML, ranked search results, parsed pages and opaque interaction mappings. Source provenance includes canonical URL, retrieval timestamp, revision, raw HTML SHA-256, parser version and CC BY-SA 4.0 attribution. Default freshness is six hours; empty searches cache for at most one minute. Identical concurrent work is deduplicated. Network, markup and audited-field verification failures preserve usable records as labeled STALE data.
 
-Parser/cache version 3 isolates this pipeline from old broad-wiki records. Existing dos2.wiki controls survive restart. Old provider controls require repeating the lookup; they cannot serve retired cached content.
+Parser/cache version 4 isolates this pipeline from old broad-wiki records. Existing dos2.wiki controls survive restart. Old provider controls require repeating the lookup; they cannot serve retired cached content.
 
 ## Parsing and trust
 
@@ -32,6 +32,12 @@ Classic-only titles and explicitly Classic-only sections are excluded. Optional 
 [DE verification](de-verification.md) documents the narrow independent check of installed DE definitions. Audited Elemental Totem/Conjure Incarnate fields and the Elemental Totem skillbook recipe must match before a refreshed page is accepted. Only listed fields receive a verified-facts section. Other source claims are not silently promoted to verified status.
 
 A blank-book used-in table describes recipes consuming the book, not necessarily a recipe for creating it. Missing recipes remain unknown. Item/NPC co-occurrence does not establish a sale relationship or current merchant stock.
+
+## Cards and fuzzy lookup
+
+Overview embeds show source icons, inline stats, requirements, complete recipes when they fit, used-to-craft items and ordinary acquisition. A direct section selector preserves full source text with pagination. Long fields explicitly point to the complete section. A blank recipe output stays unknown; it is never replaced with an ingredient. Technical provenance is available separately.
+
+Live checks found Conjure Incarnate from `conjur incarnte`, Elemental Totem Skillbook from `elementl totem skillbok`, both blank summoning books from `summoning book`, and Gloves of Teleportation from `teleport gloves`. A repeated lookup made zero HTTP requests.
 
 ## Live evidence
 

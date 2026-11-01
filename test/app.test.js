@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { EmbedBuilder, StringSelectMenuBuilder } from 'discord.js';
 import { command } from '../src/commands.js';
 import { config, permitted, validateDiscord } from '../src/config.js';
 import { Http } from '../src/http.js';
@@ -53,7 +54,31 @@ function fake(user = alice, type = 'command', customId = undefined) {
     };
 }
 
+const display = (payload) => [payload.content, ...(payload.embeds || []).flatMap((embed) => [embed.title, embed.description, ...(embed.fields || []).flatMap((field) => [field.name, field.value])])].filter(Boolean).join('\n');
+
+function selectSection(payload, label) {
+    const select = payload.components.flatMap((row) => row.components).find((c) => c.type === 3 && c.placeholder === 'Choose information to view');
+    const option = select.options.find((option) => option.label === label);
+
+    assert.ok(option, label);
+
+    return { id: select.custom_id, value: option.value };
+}
+
 function limits(payload) {
+    for (const embed of payload.embeds || []) {
+        EmbedBuilder.from(embed).toJSON();
+        assert.ok((embed.description || '').length <= 4_096);
+        assert.ok((embed.fields || []).length <= 25);
+        let size = (embed.title || '').length + (embed.description || '').length + (embed.footer?.text || '').length;
+
+        for (const field of embed.fields || []) {
+            assert.ok(field.value.length <= 1_024); size += field.name.length + field.value.length;
+        }
+
+        assert.ok(size <= 6_000, size);
+    }
+
     assert.ok(payload.content.length <= 2_000, payload.content.length);
     assert.ok(payload.components.length <= 5);
 
@@ -66,6 +91,7 @@ function limits(payload) {
             }
 
             if (c.options) {
+                StringSelectMenuBuilder.from(c).toJSON();
                 assert.ok(c.options.length <= 25);
             }
         }
@@ -166,7 +192,9 @@ test('all detail chunks and controls fit Discord and preserve complete escaped s
     const pages = chunks(article.sections[0].text);
 
     for (const [page, page_] of pages.entries()) {
-        full += page_; limits(detailView(store, records[0], article, alice, { page }));
+        full += page_; const card = detailView(store, records[0], article, alice, { page, sectionKey: `source:${JSON.stringify([article.sections[0].title])}` });
+
+        limits(card); assert.equal(card.embeds[0].description, page_);
     }
 
     assert.equal(full, safe(article.sections[0].text)); assert.ok(!full.includes('@everyone')); assert.ok(!full.includes('https://example.com'));
@@ -293,7 +321,7 @@ test('routine names, recipes, stats and ordinary acquisition are shared for both
     const record = { ...article, ...item, sections: [{ title: 'Crafting', text: 'Blank Summoning Skillbook + Elemental Totem Scroll' }, { title: 'Locations', text: 'Sold by a summoning vendor in Fort Joy.' }], related: [] };
     const shared = listView(store, [item]);
 
-    assert.ok(shared.content.includes(item.title)); assert.equal(shared.components[0].components[0].label, 'View 1');
+    assert.ok(display(shared).includes(item.title)); assert.equal(shared.components[0].components[0].label, 'View 1');
     let current; const lookup = {
         async detail() {
             assert.ok(['deferReply', 'deferUpdate'].includes(current.calls[0][0]));
@@ -305,10 +333,10 @@ test('routine names, recipes, stats and ordinary acquisition are shared for both
 
     for (const user of [alice, bob]) {
         current = fake(user, 'button', shared.components[0].components[0].custom_id); await route(current);
-        assert.equal(current.ephemeral, false); assert.match(current.calls[1][1].content, /Blank Summoning Skillbook/);
-        const next = current.calls[1][1].components[0].components.find((c) => c.label === 'Next section');
+        assert.equal(current.ephemeral, false); assert.match(display(current.calls[1][1]), /Blank Summoning Skillbook/);
+        const next = selectSection(current.calls[1][1], 'Where to find');
 
-        current = fake(user, 'button', next.custom_id); await route(current); assert.equal(current.calls[0][0], 'deferUpdate'); assert.match(current.calls[1][1].content, /Fort Joy/);
+        current = fake(user, 'button', next.id); current.values = [next.value]; await route(current); assert.equal(current.calls[0][0], 'deferUpdate'); assert.match(display(current.calls[1][1]), /Fort Joy/);
     }
 });
 test('mixed articles share routine sections and reveal narrative sections in a new private flow', async (t) => {
@@ -316,7 +344,7 @@ test('mixed articles share routine sections and reveal narrative sections in a n
     const record = { ...article, ...item, sections: [{ title: 'Effects', text: 'Restores 30 vitality.' }, { title: 'Quest outcome SECRET_HEADING', text: 'SECRET_PLOT and the ending.' }, { title: 'Recipe', text: 'Bottle + ingredient' }], related: [{ ...entry('SECRET_CHARACTER'), sourceCategories: ['Characters'] }] };
     const publicView = detailView(store, item, record, null);
 
-    limits(publicView); assert.match(publicView.content, /Restores 30/); assert.ok(!JSON.stringify(publicView).includes('SECRET'));
+    limits(publicView); assert.match(display(publicView), /Restores 30/); assert.ok(!JSON.stringify(publicView).includes('SECRET'));
     const reveal = publicView.components.flatMap((row) => row.components).find((c) => c.label === 'Reveal story details');
 
     assert.ok(reveal);
@@ -328,11 +356,13 @@ test('mixed articles share routine sections and reveal narrative sections in a n
     const click = fake(bob, 'button', reveal.custom_id);
 
     await route(click); assert.deepEqual(click.calls[0], ['deferReply', { flags: 64 }]);
-    const next = click.calls[1][1].components[0].components.find((c) => c.label === 'Next section');
-    const nextClick = fake(bob, 'button', next.custom_id);
+    const next = selectSection(click.calls[1][1], 'Quest outcome SECRET_HEADING');
+    const nextClick = fake(bob, 'button', next.id);
 
-    await route(nextClick); assert.equal(nextClick.ephemeral, true); assert.ok(nextClick.calls[1][1].content.includes(safe('SECRET_PLOT')));
-    const wrongActor = fake(alice, 'button', next.custom_id);
+    nextClick.values = [next.value];
+
+    await route(nextClick); assert.equal(nextClick.ephemeral, true); assert.ok(display(nextClick.calls[1][1]).includes(safe('SECRET_PLOT')));
+    const wrongActor = fake(alice, 'button', next.id);
 
     await route(wrongActor); assert.match(wrongActor.calls[0][1].content, /belongs to another/);
 });
@@ -362,7 +392,7 @@ test('search preview uses source metadata after deferring and ignores the reques
     };
 
     interaction.options.getSubcommand = () => 'skill'; await router(cfg, store, lookup)(interaction);
-    assert.ok(!JSON.stringify(interaction.calls).includes('SECRET_QUEST_TITLE')); assert.match(interaction.calls[1][1].content, /Reveal privately/);
+    assert.ok(!JSON.stringify(interaction.calls).includes('SECRET_QUEST_TITLE')); assert.match(display(interaction.calls[1][1]), /Reveal privately/);
 });
 
 test('nested narrative context stays hidden and public related previews cannot reveal story text', async (t) => {
@@ -371,7 +401,7 @@ test('nested narrative context stays hidden and public related previews cannot r
     const shared = detailView(store, item, record, null);
 
     assert.ok(!JSON.stringify(shared).includes('SECRET'));
-    const select = shared.components.flatMap((row) => row.components).find((c) => c.type === 3);
+    const select = shared.components.flatMap((row) => row.components).find((c) => c.type === 3 && c.placeholder.startsWith('Look up'));
 
     assert.ok(select); assert.match(select.options[0].label, /preview/);
     const click = fake(bob, 'button', select.custom_id);
@@ -386,4 +416,22 @@ test('nested narrative context stays hidden and public related previews cannot r
     })(click);
     assert.equal(click.calls[0][0], 'deferUpdate'); assert.ok(!JSON.stringify(click.calls).includes('SECRET'));
     assert.match(click.calls[1][1].content, /Reveal it privately/);
+});
+
+test('section selection stays on the same topic when source sections reorder; invalid selections fail privately', async (t) => {
+    const { store } = setup(t); const record = { ...article, ...entry('Example Potion'), entityType: 'item', sections: [{ title: 'Effects', text: 'Restores vitality' }, { title: 'Crafting', text: 'Ingredient A + Ingredient B' }], related: [] };
+    const original = detailView(store, record, record, null); const section = selectSection(original, 'Crafting recipe');
+    const changed = { ...record, sections: [...record.sections].reverse() }; let fetched = 0; const route = router(cfg, store, {
+        async detail() {
+            fetched++;
+
+            return { value: changed };
+        },
+    });
+    const click = fake(bob, 'button', section.id);
+
+    click.values = [section.value]; await route(click); assert.equal(click.calls[0][0], 'deferUpdate'); assert.match(display(click.calls[1][1]), /Ingredient A/); assert.match(click.calls[1][1].embeds[0].footer.text, /Crafting recipe/);
+    const invalid = fake(alice, 'button', section.id);
+
+    invalid.values = ['99']; await route(invalid); assert.equal(invalid.calls[0][1].flags, 64); assert.equal(fetched, 1);
 });

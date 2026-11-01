@@ -13,7 +13,7 @@
 
 ## dos2.wiki adapter verification
 
-The provider migration passes 32 local deterministic tests, including cached raw/index/search persistence, hidden-stat removal, audited DE-field conflicts, Classic exclusions, private payloads and stale fallback. Seven live dos2.wiki checks pass, including a status-effect lookup. Only fields listed in [DE verification](de-verification.md) were independently compared with installed DE definitions. The two-account Discord test of this updated adapter remains manual.
+The provider migration passes 42 local deterministic tests, including cached raw/index/search persistence, hidden-stat removal, audited DE-field conflicts, Classic exclusions, private payloads and stale fallback. Seven live dos2.wiki checks pass, including a status-effect lookup. Four additional live fuzzy queries verified the 5,045-title catalog and focused cards. Repeating the lookup made no HTTP requests. Embed and select-menu payloads validate through discord.js builders; tests include complete long-recipe pagination, source-section reordering, malformed controls, sitemap destination restrictions and stale-catalog recovery. Only fields listed in [DE verification](de-verification.md) were independently compared with installed DE definitions. The two-account Discord test of this updated adapter remains manual.
 
 ## Verified native GitHub-hosted CI
 

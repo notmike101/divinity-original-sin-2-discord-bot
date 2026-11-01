@@ -114,8 +114,18 @@ export function router(cfg, store, lookup, limits = new Limits()) {
                 return await interaction.editReply(await renderList(state.results, state.page, owner, state.stale));
             }
 
-            if (!['detail', 'related'].includes(state.kind)) {
+            if (!['detail', 'related', 'section'].includes(state.kind)) {
                 return await reject('Invalid control. Repeat /dos2 search.');
+            }
+
+            if (state.kind === 'section') {
+                const value = interaction.values?.[0];
+
+                if (!/^\d{1,2}$/.test(value || '') || !state.sectionKeys?.[Number(value)]) {
+                    return await reject('Invalid section. Choose a section from the card again.');
+                }
+
+                state.sectionKey = state.sectionKeys[Number(value)]; state.page = 0;
             }
 
             let entry = state.entry;

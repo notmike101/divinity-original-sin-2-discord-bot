@@ -1,5 +1,6 @@
+import { titleCatalog } from './catalog.js';
 import { PARSER_VERSION } from './domain.js';
-import { expand, normalize, rank, matches } from './search.js';
+import { expand, normalize, rank, matches, SEARCH_VERSION } from './search.js';
 import { verify } from './verification.js';
 import { document, links, provider, articleUrl, parseArticle } from './wiki-pages.js';
 
@@ -11,7 +12,7 @@ const indexes = {
 };
 const aliases = { 'teleportation gloves': 'Gloves of Teleportation', 'physical armour': 'Physical and Magical Armor', 'physical armor': 'Physical and Magical Armor', 'blank summoning skill book': 'Blank Summoning Skillbook' };
 
-/** Normal article/index retrieval only. Search runs locally against cached index links. */
+/** Article and publisher sitemap retrieval. Search runs locally against cached titles. */
 export class Dos2Wiki {
     constructor(store, http, cfg) {
         this.store = store; this.http = http; this.cfg = cfg; this.provider = provider;
@@ -35,6 +36,10 @@ export class Dos2Wiki {
         }
     }
 
+    catalog(refresh = false) {
+        return titleCatalog(this.store, this.http, this.cfg.cacheMs, refresh);
+    }
+
     async search(query, category, refresh) {
         const pages = category === 'all' ? [...new Set(Object.values(indexes).flat())] : indexes[category];
 
@@ -42,11 +47,12 @@ export class Dos2Wiki {
             throw new Error('Invalid search category.');
         }
 
-        const entries = []; let stale = false;
+        const catalog = await this.catalog(refresh);
+        const entries = [...catalog.value]; let stale = catalog.stale;
         const directTitle = aliases[normalize(query)] || normalize(query).replaceAll(/\b\p{L}/gu, (c) => c.toUpperCase());
 
         if (!/[\x00-\x1F#/:?\\]/.test(directTitle)) {
-            const direct = await this.page(directTitle, refresh);
+            const direct = catalog.value.some((entry) => matches(query, entry.title)) ? null : await this.page(directTitle, refresh);
 
             if (direct) {
                 const doc = document(direct.value.html);
@@ -55,7 +61,7 @@ export class Dos2Wiki {
             }
         }
 
-        for (const title of pages) {
+        for (const title of (category === 'all' ? [] : pages)) {
             const result = await this.page(title, refresh);
 
             if (!result) {
@@ -97,15 +103,23 @@ export class Lookup {
             throw new Error('Use a query between 1 and 180 characters.');
         }
 
-        return this.store.cached(`search:${provider.id}:v${PARSER_VERSION}:${category}:${normalize(expand(query))}`, this.cfg.cacheMs, async () => {
+        return this.store.cached(`search:${provider.id}:v${PARSER_VERSION}:s${SEARCH_VERSION}:${category}:${normalize(expand(query))}`, this.cfg.cacheMs, async () => {
             const result = await this.adapter.search(query, category, refresh);
 
             if (result.stale) {
-                throw new Error('Source refresh incomplete; use labeled cached results.');
+                const error = new Error('Source refresh incomplete; using labeled cached titles.');
+
+                error.staleResult = result; throw error;
             }
 
             return result.value;
-        }, refresh);
+        }, refresh).catch((error) => {
+            if (error.staleResult?.value.length) {
+                return error.staleResult;
+            }
+
+            throw error;
+        });
     }
 
     /** Hydrate metadata only for the visible five candidates; failed previews stay unclassified. */

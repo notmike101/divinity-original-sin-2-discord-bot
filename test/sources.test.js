@@ -71,6 +71,8 @@ test('local search caches results/index HTML, deduplicates requests, and survive
         },
     };
     const cfg = { cacheMs: 100_000 }; const lookup = new Lookup(store, http, cfg);
+
+    lookup.adapter.catalog = async () => ({ value: [], stale: false });
     const [a, b] = await Promise.all([lookup.search('Elemental Totem Skillbook', 'crafting'), lookup.search('Elemental Totem Skillbook', 'crafting')]);
 
     assert.deepEqual(a, b); assert.equal(a.value[0].title, 'Elemental Totem Skillbook'); assert.equal(calls, 3);
@@ -132,6 +134,7 @@ test('unknown queries stay empty and invalid queries cannot become network reque
         },
     }, { cacheMs: 100_000 });
 
+    lookup.adapter.catalog = async () => ({ value: [], stale: false });
     assert.deepEqual((await lookup.search('xyzzyplugh', 'crafting')).value, []);
     assert.throws(() => lookup.search('!!!'), /query/);
 });
@@ -148,8 +151,9 @@ test('HTTP rejects namespaces, search/API URLs, encoded namespaces, credentials 
 
 test('Classic-only articles and nested Classic sections are excluded without dropping the following DE section', () => {
     assert.throws(() => parseArticle(html('Example Classic', '<p>Classic values</p>')), /Classic-only/);
-    const record = parseArticle(html('Example', '<p>Introduction</p><h2>Classic Edition</h2><p>Hidden Classic values</p><h3>Nested</h3><p>Also Classic</p><h2>Definitive Edition</h2><p>DE source values</p>'));
+    const record = parseArticle(html('Example', '<p>Introduction</p><h2>Classic Edition</h2><p>Hidden Classic values</p><h3>Nested</h3><p>Also Classic</p><table><tr><th>Product</th><th>Ingredients</th></tr><tr><td>Example</td><td>Classic ingredient</td></tr></table><h2>Definitive Edition</h2><p>DE source values</p>'));
 
+    assert.equal(record.recipes.length, 0);
     assert.ok(!record.sections.some((s) => s.text.includes('Hidden Classic') || s.text.includes('Also Classic')));
     assert.ok(record.sections.some((s) => s.text.includes('DE source values')));
 });
@@ -184,4 +188,13 @@ test('source categories and ancestor headings survive parsing for disclosure dec
     assert.equal(record.entityType, 'skill'); assert.deepEqual(record.sourceCategories, ['Quests']);
     assert.deepEqual(record.sections.find((s) => s.title === 'Choice one').headings, ['Quest outcomes', 'Choice one']);
     assert.deepEqual(record.sections.find((s) => s.title === 'Crafting').headings, ['Crafting']);
+});
+
+test('a new fuzzy query can use stale catalog matches without caching them as fresh', async (t) => {
+    const { store } = setup(t); const lookup = new Lookup(store, {}, { cacheMs: 10_000 });
+
+    lookup.adapter.search = async () => ({ value: [{ title: 'Elemental Totem', url: 'https://dos2.wiki/wiki/Elemental_Totem' }], stale: true });
+    const [a, b] = await Promise.all([lookup.search('totm'), lookup.search('totm')]);
+
+    assert.equal(a.stale, true); assert.deepEqual(a, b); assert.equal(store.db.prepare('select count(*) as n from cache where key like \'search:%\'').get().n, 0);
 });

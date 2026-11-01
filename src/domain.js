@@ -13,10 +13,13 @@
  * @property {string} revision - Source article revision ID.
  * @property {string} contentHash - SHA-256 of retrieved source HTML.
  * @property {string} license - Source reuse/attribution label.
+ * @property {string} [image] - Validated source icon URL.
+ * @property {Array<{output: string | null, ingredients: string[], conditions?: string, headings: string[]}>} [recipes] - Explicit recipe rows; missing outputs stay unknown.
+ * @property {Array<{output: string | null, ingredients: string[], headings: string[]}>} [usedIn] - Source rows using this entry as an ingredient.
  * @property {Record<string, string | number>} fields - Only reliably parsed source fields.
  * @property {object} [verification] - Narrow audited-field status, never whole-page certification.
  * @property {Array<{title: string, text: string, evidence?: string, headings?: string[]}>} sections - Ordered complete source excerpts.
  * @property {Array<{title: string, url: string}>} related - Actual article links.
  */
-export const PARSER_VERSION = '3';
+export const PARSER_VERSION = '4';
 export const categories = ['all', 'crafting', 'skills', 'items', 'quests', 'mechanics'];
