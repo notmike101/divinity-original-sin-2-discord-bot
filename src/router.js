@@ -44,7 +44,7 @@ export function router(cfg, store, lookup, limits = new Limits()) {
             }
         }
 
-        const prepared = !owner && lookup.preview ? await lookup.preview(results, page, 3) : results;
+        const prepared = !owner && lookup.preview ? await lookup.preview(results, page, 5) : results;
 
         return listView(store, prepared, page, owner, stale, unavailable);
     };
@@ -115,6 +115,24 @@ export function router(cfg, store, lookup, limits = new Limits()) {
 
             if (state.owner && state.owner !== interaction.user.id) {
                 return await reject('This private view belongs to another user. Click Reveal on the shared list for your own view.');
+            }
+
+            if (state.kind === 'result') {
+                const selected = interaction.values?.[0];
+
+                if (!/^\d{1,2}$/.test(selected || '') || !state.choices?.[Number(selected)]) {
+                    return await reject('Invalid result. Choose an option from the result dropdown.');
+                }
+
+                const choice = state.choices[Number(selected)];
+
+                if (!choice.entry) {
+                    await interaction.deferUpdate();
+
+                    return await interaction.editReply(await renderList(state.results, choice.page, state.owner, state.stale, state.unavailable));
+                }
+
+                state.kind = 'detail'; state.entry = choice.entry; state.navigation = true;
             }
 
             if (state.kind === 'list') {

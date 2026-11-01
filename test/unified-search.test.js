@@ -110,11 +110,27 @@ test('one source outage cannot hide other sources or offline matches; partial co
     const page = listView(store, [...result.value, ...Array.from({ length: 5 }, () => wiki)], 0, null, result.stale, result.unavailable);
 
     assert.match(page.embeds[0].description, /Partial coverage: dos2.wiki unavailable/);
-    const next = page.components.flatMap((r) => r.components).find((c) => c.label === 'Results →');
+    const next = page.components[0].components[0];
 
     assert.deepEqual(store.read(next.custom_id).unavailable, ['dos2.wiki']);
     lookup.fextralife.search = lookup.wikiSearch; lookup.forum.search = lookup.wikiSearch;
     await assert.rejects(lookup.search('potion'), /Sources unavailable/);
     store.db.prepare('INSERT INTO cache VALUES (?, ?, ?)').run('offline:fextra:article:v1:saved', JSON.stringify(record(fextra, 'Useful stored fact')), 1);
     assert.equal((await lookup.search('stored fact')).value[0].url, fextra.url);
+});
+
+test('an exact named entry does not admit unrelated cached pages matching its words separately', async (t) => {
+    const { lookup, store } = setup(t); const timeWarp = { ...wiki, title: 'Time Warp', url: 'https://dos2.wiki/wiki/Time_Warp' };
+
+    lookup.wikiSearch = async () => ({ value: [timeWarp], stale: false });
+    lookup.fextralife.search = async () => ({ value: [], stale: false });
+    lookup.forum.search = lookup.fextralife.search;
+    store.db.prepare('INSERT INTO cache VALUES (?, ?, ?)').run('page:dos2wiki:v4:unrelated', JSON.stringify(record(wiki, 'At any time a creature can warp to another place.')), 1);
+    assert.deepEqual((await lookup.search('Time Warp', 'skills')).value.map((e) => e.title), ['Time Warp']);
+    store.db.prepare('UPDATE cache SET value = ?').run(JSON.stringify(record(wiki, 'Can be used together with Time Warp.')));
+    assert.equal((await lookup.search('Time Warp', 'skills')).value.length, 2);
+    store.db.prepare('UPDATE cache SET value = ?').run(JSON.stringify(record(wiki, 'At any time a creature can warp to another place.')));
+    store.db.prepare('INSERT INTO cache VALUES (?, ?, ?)').run('page:dos2wiki:v4:Time_Warp', JSON.stringify(record(timeWarp, 'Grants an extra turn')), 2);
+    lookup.wikiSearch = lookup.fextralife.search;
+    assert.deepEqual((await lookup.search('Time Warp', 'skills')).value.map((e) => e.title), ['Time Warp']);
 });

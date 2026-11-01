@@ -5,36 +5,35 @@ import { safe } from './text.js';
 export { safe, chunks } from './text.js';
 const row = (components) => ({ type: 1, components });
 const button = (store, label, state) => ({ type: 2, style: 2, label, custom_id: store.control(state) });
-const resultsPerPage = 3;
+const resultsPerPage = 5;
 
-/** Discord has no native tabs; named buttons replace the current card and highlight its selection. */
-function resultTabs(store, results, owner, selected, resultPage, stale, unavailable) {
+/** Keep result identity and paging in one menu; selections replace the current card. */
+function resultMenu(store, results, owner, selected, resultPage, stale, unavailable) {
     const total = Math.max(1, Math.ceil(results.length / resultsPerPage));
     const selectedIndex = results.findIndex((entry) => entry.url === selected);
     const page = Math.max(0, Math.min(resultPage ?? Math.floor(Math.max(0, selectedIndex) / resultsPerPage), total - 1));
-    const state = { kind: 'list', results, owner, stale, unavailable }; const tabs = [];
+    const choices = results.slice(page * resultsPerPage, (page + 1) * resultsPerPage).map((entry) => ({ entry }));
 
     if (page) {
-        tabs.push(button(store, '← Results', { ...state, page: page - 1 }));
-    }
-
-    for (const [i, entry] of results.slice(page * resultsPerPage, (page + 1) * resultsPerPage).entries()) {
-        const source = { dos2wiki: 'Wiki', fextralife: 'Fextra', larian: 'Forum' }[entry.provider] || 'Source';
-        const label = owner || mechanical(entry) ? `${safe(entry.title).slice(0, 59)} · ${source}` : `Story result ${page * resultsPerPage + i + 1} · ${source}`;
-        const tab = button(store, label, { kind: 'detail', entry, owner, results, stale, unavailable, navigation: true, resultPage: page });
-
-        if (entry.url === selected) {
-            tab.style = 1; tab.disabled = true;
-        }
-
-        tabs.push(tab);
+        choices.unshift({ page: page - 1 });
     }
 
     if (page + 1 < total) {
-        tabs.push(button(store, 'Results →', { ...state, page: page + 1 }));
+        choices.push({ page: page + 1 });
     }
 
-    return row(tabs);
+    return row([{
+        type: 3, placeholder: 'Choose a result or source', custom_id: store.control({ kind: 'result', results, owner, stale, unavailable, resultPage: page, choices }), options: choices.map((choice, i) => {
+            if (!choice.entry) {
+                return { label: choice.page < page ? '← Previous results' : 'More results →', value: String(i) };
+            }
+
+            const entry = choice.entry; const visible = owner || mechanical(entry);
+            const source = { dos2wiki: 'dos2.wiki', fextralife: 'Fextralife', larian: 'Larian forums' }[entry.provider] || 'Source';
+
+            return { label: visible ? `${safe(entry.title).slice(0, 70)} · ${source}` : `Story-related result ${i + 1} · ${source}`, description: `${safe(entry.source || 'Reference')} · ${visible ? entry.match || 'Matching entry' : 'Reveal privately'}`.slice(0, 100), value: String(i), default: entry.url === selected };
+        }),
+    }]);
 }
 
 export const payload = (content, components = []) => ({ content, components, allowedMentions: { parse: [] }, embeds: [] });
@@ -46,7 +45,7 @@ export function listView(store, results, page = 0, owner = null, stale = false, 
     const entries = results.slice(page * resultsPerPage, (page + 1) * resultsPerPage); const state = { kind: 'list', results, owner, stale, unavailable }; const components = [];
 
     if (entries.length) {
-        components.push(resultTabs(store, results, owner, null, page, stale, unavailable));
+        components.push(resultMenu(store, results, owner, null, page, stale, unavailable));
     }
 
     const nav = [];
@@ -68,7 +67,7 @@ export function detailView(store, entry, record, owner, { section = 0, sectionKe
     results = results.map((candidate) => candidate.url === entry.url ? entry : candidate);
 
     if (!owner && (!mechanical(record) || !record.sections.some((part) => !storySection(record, part)))) {
-        return payload('This entry contains story content. Reveal it privately.', [...(results.length ? [resultTabs(store, results, owner, null, resultPage, stale, unavailable)] : []), row([button(store, 'Reveal story details', { kind: 'detail', entry, owner: null, reveal: true, results, resultPage, unavailable })])]);
+        return payload('This entry contains story content. Reveal it privately.', [...(results.length ? [resultMenu(store, results, owner, null, resultPage, stale, unavailable)] : []), row([button(store, 'Reveal story details', { kind: 'detail', entry, owner: null, reveal: true, results, resultPage, unavailable })])]);
     }
 
     const sections = topics(record, owner);
@@ -93,7 +92,7 @@ export function detailView(store, entry, record, owner, { section = 0, sectionKe
         choices.push({ key: `topic-page:${topicPage + 1}`, title: 'More sections →' });
     }
 
-    const components = results.length ? [resultTabs(store, results, owner, entry.url, resultPage, stale, unavailable)] : [];
+    const components = results.length ? [resultMenu(store, results, owner, entry.url, resultPage, stale, unavailable)] : [];
 
     components.push(row([{ type: 3, placeholder: 'Choose information to view', custom_id: store.control({ ...state, kind: 'section', sectionKeys: choices.map((choice) => choice.key) }), options: choices.map((choice, i) => ({ label: (choice.overview ? 'Overview' : topicLabel(choice.title)).slice(0, 95), value: String(i), default: choice.key === part.key })) }]));
     const nav = [];
@@ -128,7 +127,7 @@ export function detailView(store, entry, record, owner, { section = 0, sectionKe
     const related = record.related.slice(relatedPage * 25, relatedPage * 25 + 25);
 
     if (related.length) {
-        components.push(row([{ type: 3, placeholder: 'Look up an ingredient or related entry', custom_id: store.control({ kind: 'related', owner, navigation: true, preview: !owner, provider: entry.provider, related, results }), options: related.map((link, i) => ({ label: (owner || mechanical(link)) ? safe(link.title).slice(0, 95) : `Related entry ${relatedPage * 25 + i + 1} (preview)`, value: String(i) })) }]));
+        components.push(row([{ type: 3, placeholder: 'Look up an ingredient or related entry', custom_id: store.control({ kind: 'related', owner, navigation: true, preview: !owner, provider: entry.provider, related, results, resultPage, unavailable }), options: related.map((link, i) => ({ label: (owner || mechanical(link)) ? safe(link.title).slice(0, 95) : `Related entry ${relatedPage * 25 + i + 1} (preview)`, value: String(i) })) }]));
         const links = [];
 
         if (relatedPage) {

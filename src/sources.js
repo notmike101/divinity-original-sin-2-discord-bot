@@ -127,13 +127,17 @@ export class Lookup {
         const names = ['dos2.wiki', 'Fextralife', 'Larian forums'];
         const results = await Promise.allSettled([this.wikiSearch(query, category, refresh), this.fextralife.search(query), this.forum.search(query)]);
         const candidates = results.flatMap((result) => result.status === 'fulfilled' ? result.value.value : []);
+        const stored = this.stored();
+        const exactName = [...candidates, ...stored].some((entry) => normalize(entry.title) === normalize(query));
         const words = normalize(expand(query)).split(' ').filter((word) => !['a', 'an', 'the', 'of', 'and', 'for', 'to'].includes(word));
 
-        for (const record of this.stored()) {
+        for (const record of stored) {
             const text = normalize([record.title, ...record.sections.map((s) => `${s.title} ${s.text}`), JSON.stringify(record.fields || {}), JSON.stringify(record.recipes || []), JSON.stringify(record.usedIn || [])].join(' '));
             const tokens = text.split(' ');
 
-            if (matches(query, record.title) || (words.length && words.every((word) => tokens.some((token) => token === word || (word.length >= 3 && token.startsWith(word)))))) {
+            const contentMatch = exactName ? text.includes(normalize(query)) : words.length && words.every((word) => tokens.some((token) => token === word || (word.length >= 3 && token.startsWith(word))));
+
+            if (matches(query, record.title) || contentMatch) {
                 candidates.push({ title: record.title, url: record.url, provider: record.provider, source: record.source, sourceCategories: record.sourceCategories, entityType: record.entityType });
             }
         }
