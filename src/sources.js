@@ -1,7 +1,7 @@
 import { titleCatalog } from './catalog.js';
 import { PARSER_VERSION } from './domain.js';
-import { Fextralife } from './fextralife.js';
-import { Forum } from './forum.js';
+import { Fextralife, fextraUrl } from './fextralife.js';
+import { Forum, forumUrl } from './forum.js';
 import { expand, normalize, rank, matches, SEARCH_VERSION } from './search.js';
 import { verify } from './verification.js';
 import { document, links, provider, articleUrl, parseArticle } from './wiki-pages.js';
@@ -94,7 +94,7 @@ export class Dos2Wiki {
         return { ...result, stale: result.stale || raw.stale };
     }
 }
-/** Primary dos2.wiki pipeline; broad-wiki results are never silently substituted. */
+/** Search every supported source and stored article without merging their claims. */
 export class Lookup {
     constructor(store, http, cfg) {
         this.store = store; this.cfg = cfg; this.adapter = new Dos2Wiki(store, http, cfg);
@@ -103,6 +103,53 @@ export class Lookup {
     }
 
     search(query, category = 'all', refresh = false) {
+        if (typeof query !== 'string' || !normalize(query) || query.length > 180 || !['all', ...Object.keys(indexes)].includes(category)) {
+            throw new Error('Use a query between 1 and 180 characters and a valid category.');
+        }
+
+        return this.searchAll(query, category, refresh);
+    }
+
+    /** Read only current source records, never configuration, controls, raw scripts or retired providers. */
+    stored() {
+        const records = this.store.db.prepare(`SELECT json_remove(value, '$.rawHtml') AS record FROM cache
+            WHERE key LIKE 'page:dos2wiki:v${PARSER_VERSION}:%' OR key LIKE 'offline:fextra:article:v1:%' OR key LIKE 'offline:forum:thread:v1:%'
+            ORDER BY at ASC`).all().map((row) => JSON.parse(row.record)).filter((record) => record.sections?.length && (
+            (record.provider === 'dos2wiki' && record.url === articleUrl(provider, record.title))
+            || (record.provider === 'fextralife' && record.url === fextraUrl(record.url))
+            || (record.provider === 'larian' && record.url === forumUrl(record.url))
+        ));
+
+        return [...new Map(records.map((record) => [record.url, record])).values()];
+    }
+
+    async searchAll(query, category, refresh) {
+        const names = ['dos2.wiki', 'Fextralife', 'Larian forums'];
+        const results = await Promise.allSettled([this.wikiSearch(query, category, refresh), this.fextralife.search(query), this.forum.search(query)]);
+        const candidates = results.flatMap((result) => result.status === 'fulfilled' ? result.value.value : []);
+        const words = normalize(expand(query)).split(' ').filter((word) => !['a', 'an', 'the', 'of', 'and', 'for', 'to'].includes(word));
+
+        for (const record of this.stored()) {
+            const text = normalize([record.title, ...record.sections.map((s) => `${s.title} ${s.text}`), JSON.stringify(record.fields || {}), JSON.stringify(record.recipes || []), JSON.stringify(record.usedIn || [])].join(' '));
+            const tokens = text.split(' ');
+
+            if (matches(query, record.title) || (words.length && words.every((word) => tokens.some((token) => token === word || (word.length >= 3 && token.startsWith(word)))))) {
+                candidates.push({ title: record.title, url: record.url, provider: record.provider, source: record.source, sourceCategories: record.sourceCategories, entityType: record.entityType });
+            }
+        }
+
+        const unavailable = results.flatMap((result, i) => result.status === 'rejected' ? [names[i]] : []);
+
+        if (unavailable.length === names.length && !candidates.length) {
+            throw new Error('Sources unavailable and no matching stored content.');
+        }
+
+        const value = rank(query, candidates, category).map((candidate) => matches(query, candidate.title) ? candidate : { ...candidate, match: 'Stored content / topic match' });
+
+        return { value, stale: results.some((result) => result.status === 'fulfilled' && result.value.stale), unavailable };
+    }
+
+    wikiSearch(query, category = 'all', refresh = false) {
         if (typeof query !== 'string' || !normalize(query) || query.length > 180) {
             throw new Error('Use a query between 1 and 180 characters.');
         }
@@ -154,6 +201,14 @@ export class Lookup {
             throw new Error('Source changed or invalid entry. Repeat /dos2 search.');
         }
 
-        return this.adapter.fetch(entry.title, refresh);
+        return this.adapter.fetch(entry.title, refresh).catch((error) => {
+            const stored = this.stored().find((record) => record.url === entry.url);
+
+            if (stored) {
+                return { value: stored, stale: true };
+            }
+
+            throw error;
+        });
     }
 }

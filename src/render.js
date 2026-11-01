@@ -8,11 +8,11 @@ const button = (store, label, state) => ({ type: 2, style: 2, label, custom_id: 
 
 export const payload = (content, components = []) => ({ content, components, allowedMentions: { parse: [] }, embeds: [] });
 /** Multi-match cards keep numbers/buttons stable; narrative titles remain private. */
-export function listView(store, results, page = 0, owner = null, stale = false) {
+export function listView(store, results, page = 0, owner = null, stale = false, unavailable = []) {
     const total = Math.max(1, Math.ceil(results.length / 5));
 
     page = Math.max(0, Math.min(page, total - 1));
-    const entries = results.slice(page * 5, page * 5 + 5); const state = { kind: 'list', results, owner, stale }; const components = [];
+    const entries = results.slice(page * 5, page * 5 + 5); const state = { kind: 'list', results, owner, stale, unavailable }; const components = [];
 
     if (entries.length) {
         components.push(row(entries.map((entry, i) => button(store, (owner || mechanical(entry)) ? `View ${i + 1}` : `Reveal ${i + 1}`, { kind: 'detail', entry, owner, results, stale }))));
@@ -36,7 +36,7 @@ export function listView(store, results, page = 0, owner = null, stale = false) 
         components.push(row(nav));
     }
 
-    return { ...payload('', components), embeds: [{ title: owner ? 'Private search results' : 'Search results', color: 0xB9_8D_4C, description: entries.length ? 'Choose a result below. Similar entries are separate choices.' : 'No close matches found. Try fewer words or a different name.', fields: entries.map((entry, i) => ({ name: (owner || mechanical(entry)) ? `${i + 1}. ${safe(entry.title).slice(0, 220)}` : `${i + 1}. Story-related result`, value: (owner || mechanical(entry)) ? `${entry.match || 'Matching entry'} · ${entry.entityType || 'Reference'}` : 'Reveal privately to view its name and details.' })), footer: { text: `${results.length} matches · Page ${page + 1}/${total}${stale ? ' · STALE CACHE' : ''}` } }] };
+    return { ...payload('', components), embeds: [{ title: owner ? 'Private search results' : 'Search results', color: 0xB9_8D_4C, description: (entries.length ? 'Choose a result below. Similar entries and different sources are separate choices.' : 'No close matches found. Try fewer words or a different name.') + (unavailable.length ? `\nPartial coverage: ${unavailable.join(', ')} unavailable. Stored matches are still included.` : ''), fields: entries.map((entry, i) => ({ name: (owner || mechanical(entry)) ? `${i + 1}. ${safe(entry.title).slice(0, 220)}` : `${i + 1}. Story-related result`, value: `${safe(entry.source || 'Reference')} · ${(owner || mechanical(entry)) ? `${entry.match || 'Matching entry'} · ${entry.entityType || 'Reference'}` : 'Reveal privately to view its name and details.'}` })), footer: { text: `${results.length} matches · Page ${page + 1}/${total}${stale ? ' · STALE CACHE' : ''}` } }] };
 }
 
 /** Item-first embeds and direct section selection; all private navigation stays owner-scoped. */

@@ -73,13 +73,13 @@ test('local search caches results/index HTML, deduplicates requests, and survive
     const cfg = { cacheMs: 100_000 }; const lookup = new Lookup(store, http, cfg);
 
     lookup.adapter.catalog = async () => ({ value: [], stale: false });
-    const [a, b] = await Promise.all([lookup.search('Elemental Totem Skillbook', 'crafting'), lookup.search('Elemental Totem Skillbook', 'crafting')]);
+    const [a, b] = await Promise.all([lookup.wikiSearch('Elemental Totem Skillbook', 'crafting'), lookup.wikiSearch('Elemental Totem Skillbook', 'crafting')]);
 
     assert.deepEqual(a, b); assert.equal(a.value[0].title, 'Elemental Totem Skillbook'); assert.equal(calls, 3);
     await lookup.detail(a.value[0]); assert.equal(calls, 3);
     const reopened = new Store(dir);
 
-    await new Lookup(reopened, http, cfg).search('Elemental Totem Skillbook', 'crafting'); assert.equal(calls, 3); reopened.close();
+    await new Lookup(reopened, http, cfg).wikiSearch('Elemental Totem Skillbook', 'crafting'); assert.equal(calls, 3); reopened.close();
     const page = await lookup.detail(a.value[0], true);
 
     assert.equal(page.stale, false); assert.equal(calls, 4);
@@ -90,7 +90,7 @@ test('local search caches results/index HTML, deduplicates requests, and survive
     const stale = await lookup.detail(a.value[0], true);
 
     assert.equal(stale.stale, true);
-    const search = await lookup.search('Elemental Totem Skillbook', 'crafting', true);
+    const search = await lookup.wikiSearch('Elemental Totem Skillbook', 'crafting', true);
 
     assert.equal(search.stale, true);
 });
@@ -135,8 +135,8 @@ test('unknown queries stay empty and invalid queries cannot become network reque
     }, { cacheMs: 100_000 });
 
     lookup.adapter.catalog = async () => ({ value: [], stale: false });
-    assert.deepEqual((await lookup.search('xyzzyplugh', 'crafting')).value, []);
-    assert.throws(() => lookup.search('!!!'), /query/);
+    assert.deepEqual((await lookup.wikiSearch('xyzzyplugh', 'crafting')).value, []);
+    assert.throws(() => lookup.wikiSearch('!!!'), /query/);
 });
 test('HTTP rejects namespaces, search/API URLs, encoded namespaces, credentials and host-changing redirects', async (t) => {
     const http = new Http();
@@ -194,7 +194,7 @@ test('a new fuzzy query can use stale catalog matches without caching them as fr
     const { store } = setup(t); const lookup = new Lookup(store, {}, { cacheMs: 10_000 });
 
     lookup.adapter.search = async () => ({ value: [{ title: 'Elemental Totem', url: 'https://dos2.wiki/wiki/Elemental_Totem' }], stale: true });
-    const [a, b] = await Promise.all([lookup.search('totm'), lookup.search('totm')]);
+    const [a, b] = await Promise.all([lookup.wikiSearch('totm'), lookup.wikiSearch('totm')]);
 
     assert.equal(a.stale, true); assert.deepEqual(a, b); assert.equal(store.db.prepare('select count(*) as n from cache where key like \'search:%\'').get().n, 0);
 });

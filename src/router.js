@@ -28,10 +28,10 @@ export class Limits {
 }
 /** All callbacks use the current interaction token. Shared reveals always create new private replies. */
 export function router(cfg, store, lookup, limits = new Limits()) {
-    const renderList = async (results, page = 0, owner = null, stale = false) => {
+    const renderList = async (results, page = 0, owner = null, stale = false, unavailable = []) => {
         const prepared = !owner && lookup.preview ? await lookup.preview(results, page) : results;
 
-        return listView(store, prepared, page, owner, stale);
+        return listView(store, prepared, page, owner, stale, unavailable);
     };
 
     return async (interaction) => {
@@ -86,7 +86,7 @@ export function router(cfg, store, lookup, limits = new Limits()) {
                 try {
                     const result = ['forum', 'fextralife'].includes(sub) ? await lookup[sub].search(interaction.options.getString('query')) : await lookup.search(interaction.options.getString('query'), category);
 
-                    return await interaction.editReply(await renderList(result.value, 0, null, result.stale));
+                    return await interaction.editReply(await renderList(result.value, 0, null, result.stale, result.unavailable));
                 } catch {
                     return await interaction.editReply(payload('Lookup unavailable. Try again shortly or use a shorter query.'));
                 }
@@ -111,7 +111,7 @@ export function router(cfg, store, lookup, limits = new Limits()) {
                     await interaction.deferUpdate();
                 }
 
-                return await interaction.editReply(await renderList(state.results, state.page, owner, state.stale));
+                return await interaction.editReply(await renderList(state.results, state.page, owner, state.stale, state.unavailable));
             }
 
             if (['forum', 'fextralife'].includes(state.kind)) {

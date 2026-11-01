@@ -1,6 +1,8 @@
 # Supplementary sources and offline retrieval
 
-dos2.wiki remains the default lookup and the only provider with the narrow installed-DE field checks in [DE verification](de-verification.md). Supplementary claims are displayed separately, with their original source and edition uncertainty. They do not overwrite verified recipes or stats.
+Normal search combines dos2.wiki, Fextralife, Larian forums and all supported stored article/post text. Categories only influence ranking; no provider or category choice is required. Identical names from different sources remain separate references, labeled with their source. Cached body text, recipes and fields are searched on every invocation, so new cached information is immediately discoverable. One source outage does not block the others; partial coverage is labeled.
+
+dos2.wiki remains the only provider with the narrow installed-DE field checks in [DE verification](de-verification.md). Supplementary claims are displayed separately, with their original source and edition uncertainty. They do not overwrite verified recipes or stats.
 
 ## Fextralife DOS2 wiki
 

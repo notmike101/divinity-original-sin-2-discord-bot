@@ -13,7 +13,7 @@ let failures = 0;
 try {
     for (const [category, query] of samples) {
         try {
-            const results = await lookup.search(query, category, true);
+            const results = await lookup.wikiSearch(query, category, true);
 
             if (!results.value.length) {
                 throw new Error('No discovery results.');
