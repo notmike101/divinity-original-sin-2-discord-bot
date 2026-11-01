@@ -43,3 +43,7 @@ Both article retrieval (Main Page, About and the DOS2 overview) and search were 
 ## Fixture attribution
 
 `test/fixtures/elemental-totem.json` is the public API parse response for [Elemental Totem](https://divinity.fandom.com/wiki/Elemental_Totem), retrieved 2026-11-01. It retains source markup for a representative parser regression test. Original content is by Divinity Wiki contributors under the site's CC-BY-SA terms; see [article history](https://divinity.fandom.com/wiki/Elemental_Totem?action=history) for authors. The parser transforms that content into attributed sections. This licensing applies to source content independently from application code. Nothing from private Discord/local configuration is a fixture.
+
+## Further Definitive Edition source evaluation
+
+See [source-evaluation.md](source-evaluation.md) for the 2026-11-01 investigation of dos2.wiki, official DE-data provenance, other candidate sources, their access rules, and integration limits. No additional provider was enabled by that investigation.
