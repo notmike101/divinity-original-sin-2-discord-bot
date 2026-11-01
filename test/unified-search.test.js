@@ -110,7 +110,7 @@ test('one source outage cannot hide other sources or offline matches; partial co
     const page = listView(store, [...result.value, ...Array.from({ length: 5 }, () => wiki)], 0, null, result.stale, result.unavailable);
 
     assert.match(page.embeds[0].description, /Partial coverage: dos2.wiki unavailable/);
-    const next = page.components.flatMap((r) => r.components).find((c) => c.label === 'More results');
+    const next = page.components.flatMap((r) => r.components).find((c) => c.label === 'Results →');
 
     assert.deepEqual(store.read(next.custom_id).unavailable, ['dos2.wiki']);
     lookup.fextralife.search = lookup.wikiSearch; lookup.forum.search = lookup.wikiSearch;

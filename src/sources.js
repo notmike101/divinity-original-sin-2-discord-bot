@@ -173,9 +173,9 @@ export class Lookup {
         });
     }
 
-    /** Hydrate metadata only for the visible five candidates; failed previews stay unclassified. */
-    async preview(results, page = 0) {
-        const visible = await Promise.all(results.slice(page * 5, page * 5 + 5).map(async (entry) => {
+    /** Hydrate metadata only for the requested visible result window; failed previews stay unclassified. */
+    async preview(results, page = 0, size = 5) {
+        const visible = await Promise.all(results.slice(page * size, page * size + size).map(async (entry) => {
             try {
                 const { value } = await this.detail(entry);
 
@@ -185,7 +185,7 @@ export class Lookup {
             }
         }));
 
-        return results.map((entry, index) => index >= page * 5 && index < page * 5 + 5 ? visible[index - page * 5] : entry);
+        return results.map((entry, index) => index >= page * size && index < page * size + size ? visible[index - page * size] : entry);
     }
 
     detail(entry, refresh = false) {

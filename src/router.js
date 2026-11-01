@@ -29,7 +29,7 @@ export class Limits {
 /** All callbacks use the current interaction token. Shared reveals always create new private replies. */
 export function router(cfg, store, lookup, limits = new Limits()) {
     const renderList = async (results, page = 0, owner = null, stale = false, unavailable = []) => {
-        const prepared = !owner && lookup.preview ? await lookup.preview(results, page) : results;
+        const prepared = !owner && lookup.preview ? await lookup.preview(results, page, 3) : results;
 
         return listView(store, prepared, page, owner, stale, unavailable);
     };
@@ -105,7 +105,7 @@ export function router(cfg, store, lookup, limits = new Limits()) {
             if (state.kind === 'list') {
                 const owner = state.owner || state.revealList ? interaction.user.id : null;
 
-                if (owner) {
+                if (state.revealList) {
                     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
                 } else {
                     await interaction.deferUpdate();
@@ -117,7 +117,12 @@ export function router(cfg, store, lookup, limits = new Limits()) {
             if (['forum', 'fextralife'].includes(state.kind)) {
                 const owner = state.owner || !mechanical(state.entry) ? interaction.user.id : null;
 
-                await interaction.deferReply(owner ? { flags: MessageFlags.Ephemeral } : undefined);
+                if (owner && !state.owner) {
+                    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                } else {
+                    await interaction.deferUpdate();
+                }
+
                 const result = await lookup[state.kind].search(state.entry.title);
 
                 return await interaction.editReply(await renderList(result.value, 0, owner, result.stale));
@@ -134,7 +139,13 @@ export function router(cfg, store, lookup, limits = new Limits()) {
                     return await reject('Invalid section. Choose a section from the card again.');
                 }
 
-                state.sectionKey = state.sectionKeys[Number(value)]; state.page = 0;
+                const key = state.sectionKeys[Number(value)];
+
+                if (key.startsWith('topic-page:')) {
+                    state.topicPage = Number(key.slice(11));
+                } else {
+                    state.sectionKey = key; state.page = 0;
+                }
             }
 
             let entry = state.entry;
@@ -151,12 +162,10 @@ export function router(cfg, store, lookup, limits = new Limits()) {
 
             const privateView = Boolean(state.owner || state.reveal || !(state.preview || mechanical(entry)));
 
-            if (privateView) {
+            if (privateView && !(state.owner && !state.reveal)) {
                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-            } else if (state.navigation) {
-                await interaction.deferUpdate();
             } else {
-                await interaction.deferReply();
+                await interaction.deferUpdate();
             }
 
             const result = await lookup.detail(entry, state.refresh);

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { EmbedBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { EmbedBuilder, StringSelectMenuBuilder, ActionRowBuilder } from 'discord.js';
 import { command } from '../src/commands.js';
 import { config, permitted, validateDiscord } from '../src/config.js';
 import { Http } from '../src/http.js';
@@ -30,11 +30,11 @@ function setup(t) {
     return { dir, store };
 }
 
-function fake(user = alice, type = 'command', customId = undefined) {
+function fake(user = alice, type = 'command', customId = undefined, sourceEphemeral = false) {
     const calls = [];
 
     return {
-        user: { id: user }, context: 2, commandName: 'dos2', customId, calls,
+        user: { id: user }, context: 2, commandName: 'dos2', customId, calls, message: { flags: { has: () => sourceEphemeral } },
         options: { getSubcommand: () => 'search', getString: (key) => key === 'query' ? 'search' : null },
         isChatInputCommand: () => type === 'command', isMessageComponent: () => type === 'button', isAutocomplete: () => type === 'autocomplete', isModalSubmit: () => type === 'modal',
         async reply(p) {
@@ -44,7 +44,7 @@ function fake(user = alice, type = 'command', customId = undefined) {
             calls.push(['deferReply', p]); this.deferred = true; this.ephemeral = p?.flags === 64;
         },
         async deferUpdate() {
-            calls.push(['deferUpdate']); this.deferred = true;
+            calls.push(['deferUpdate']); this.deferred = true; this.ephemeral = sourceEphemeral;
         },
         async editReply(p) {
             calls.push(['editReply', p]);
@@ -260,13 +260,13 @@ test('private list, section, pagination, related, refresh and errors stay epheme
     const states = [{ kind: 'list', owner: alice, results: records, page: 1 }, ...[{ section: 1 }, { page: 1 }, { refresh: true }, { relatedPage: 1 }].map((state) => ({ kind: 'detail', owner: alice, entry: records[0], ...state })), { kind: 'related', owner: alice, provider: 'fandom', related: records }];
 
     for (const state of states) {
-        const interaction = fake(alice, 'button', store.control(state));
+        const interaction = fake(alice, 'button', store.control(state), true);
 
         interaction.values = ['0']; await route(interaction);
-        assert.deepEqual(interaction.calls[0], ['deferReply', { flags: 64 }]); assert.equal(interaction.calls[1][0], 'editReply'); assert.equal(interaction.ephemeral, true);
+        assert.deepEqual(interaction.calls[0], ['deferUpdate']); assert.equal(interaction.calls[1][0], 'editReply'); assert.equal(interaction.ephemeral, true);
     }
 
-    const bad = fake(alice, 'button', store.control({ kind: 'detail', owner: alice, entry: records[0] }));
+    const bad = fake(alice, 'button', store.control({ kind: 'detail', owner: alice, entry: records[0] }), true);
 
     await router(cfg, store, {
         async detail() {
@@ -277,7 +277,7 @@ test('private list, section, pagination, related, refresh and errors stay epheme
 });
 test('shared pagination updates shared message without leaking titles; malformed buttons are private errors', async (t) => {
     const { store } = setup(t); const route = router(cfg, store, {});
-    const shared = listView(store, records); const next = shared.components[1].components[0].custom_id;
+    const shared = listView(store, records); const next = shared.components.flatMap((row) => row.components).find((c) => c.label === 'Results →').custom_id;
     const click = fake(bob, 'button', next);
 
     await route(click);
@@ -321,7 +321,7 @@ test('routine names, recipes, stats and ordinary acquisition are shared for both
     const record = { ...article, ...item, sections: [{ title: 'Crafting', text: 'Blank Summoning Skillbook + Elemental Totem Scroll' }, { title: 'Locations', text: 'Sold by a summoning vendor in Fort Joy.' }], related: [] };
     const shared = listView(store, [item]);
 
-    assert.ok(display(shared).includes(item.title)); assert.equal(shared.components[0].components[0].label, 'View 1');
+    assert.ok(display(shared).includes(item.title)); assert.equal(shared.components[0].components[0].label, 'Elemental Totem Skillbook · Wiki');
     let current; const lookup = {
         async detail() {
             assert.ok(['deferReply', 'deferUpdate'].includes(current.calls[0][0]));
@@ -357,7 +357,7 @@ test('mixed articles share routine sections and reveal narrative sections in a n
 
     await route(click); assert.deepEqual(click.calls[0], ['deferReply', { flags: 64 }]);
     const next = selectSection(click.calls[1][1], 'Quest outcome SECRET_HEADING');
-    const nextClick = fake(bob, 'button', next.id);
+    const nextClick = fake(bob, 'button', next.id, true);
 
     nextClick.values = [next.value];
 
@@ -376,7 +376,7 @@ test('changed source metadata cannot publish a story through a previously public
             return { value: record };
         },
     })(click);
-    assert.deepEqual(click.calls[0], ['deferReply', undefined]); assert.ok(!JSON.stringify(click.calls).includes('SECRET'));
+    assert.deepEqual(click.calls[0], ['deferUpdate']); assert.ok(!JSON.stringify(click.calls).includes('SECRET'));
     assert.match(click.calls[1][1].content, /story content/);
 });
 test('search preview uses source metadata after deferring and ignores the requested category for disclosure', async (t) => {
@@ -458,7 +458,7 @@ test('supplementary commands and source buttons defer before retrieval and prese
         const control = shared.components.flatMap((row) => row.components).find((c) => c.label === label);
         const click = fake(bob, 'button', control.custom_id);
 
-        await route(click); assert.equal(click.calls[0][0], 'deferReply'); assert.equal(click.calls[0][1], undefined);
+        await route(click); assert.equal(click.calls[0][0], 'deferUpdate'); assert.equal(click.calls[0][1], undefined);
         const denied = fake(outsider, 'button', control.custom_id);
 
         await route(denied); assert.equal(denied.calls[0][1].flags, 64);
@@ -467,10 +467,77 @@ test('supplementary commands and source buttons defer before retrieval and prese
         const wrongOwner = fake(bob, 'button', privateControl.custom_id);
 
         await route(wrongOwner); assert.equal(wrongOwner.calls[0][1].flags, 64);
-        const own = fake(alice, 'button', privateControl.custom_id);
+        const own = fake(alice, 'button', privateControl.custom_id, true);
 
-        await route(own); assert.equal(own.calls[0][1].flags, 64);
+        await route(own); assert.equal(own.calls[0][0], 'deferUpdate'); assert.equal(own.ephemeral, true);
     }
 
     assert.equal(calls, 6);
+});
+
+test('named result tabs switch the same message for either actor, highlight the active source, and retain immutable targets', async (t) => {
+    const { store } = setup(t);
+    const results = [entry('Example Potion'), { ...entry('Example Potion'), provider: 'fextralife', source: 'Fextralife DOS2 wiki', url: 'https://divinityoriginalsin2.wiki.fextralife.com/Example_Potion' }, ...Array.from({ length: 6 }, (_, i) => entry(`Other Potion ${i}`))].map((e) => ({ ...e, entityType: 'item' }));
+    const lookup = {
+        async detail(e) {
+            return { value: { ...article, ...e, sections: [{ title: 'Effects', text: `Mechanical details from ${e.provider}` }], related: [] } };
+        },
+    };
+    const route = router(cfg, store, lookup); const list = listView(store, results, 0, null, false, ['Larian forums']);
+    const original = list.components[0].components[0];
+
+    assert.match(original.label, /Example Potion · Wiki/);
+    assert.ok(!JSON.stringify(list).includes('View 1'));
+    const first = fake(alice, 'button', original.custom_id);
+
+    await route(first); assert.deepEqual(first.calls.map((c) => c[0]), ['deferUpdate', 'editReply']);
+    const card = first.calls[1][1];
+
+    limits(card);
+    assert.equal(card.components[0].components.find((c) => c.disabled).label, 'Example Potion · Wiki');
+    const alternative = card.components[0].components.find((c) => c.label.endsWith('Fextra'));
+    const second = fake(bob, 'button', alternative.custom_id);
+
+    await route(second); assert.deepEqual(second.calls.map((c) => c[0]), ['deferUpdate', 'editReply']);
+    assert.match(second.calls[1][1].embeds[0].author.name, /Fextralife/);
+    assert.equal(second.calls[1][1].components[0].components.find((c) => c.disabled).label, 'Example Potion · Fextra');
+    const more = second.calls[1][1].components[0].components.find((c) => c.label === 'Results →');
+    const next = fake(alice, 'button', more.custom_id);
+
+    await route(next); assert.deepEqual(next.calls.map((c) => c[0]), ['deferUpdate', 'editReply']);
+    assert.match(next.calls[1][1].embeds[0].description, /Larian forums unavailable/);
+    assert.equal(store.read(original.custom_id).entry.url, results[0].url);
+});
+
+test('tabs, section-menu paging, long content and related pages fit Discord together', async (t) => {
+    const { store } = setup(t); const item = { ...entry('Example Potion'), entityType: 'item' };
+    const record = { ...article, ...item, sections: Array.from({ length: 75 }, (_, i) => ({ title: `Effect ${i}`, text: 'Long mechanical description. '.repeat(350) })), related: Array.from({ length: 80 }, (_, i) => ({ ...entry(`Ingredient ${i}`), entityType: 'ingredient' })) };
+    const results = Array.from({ length: 12 }, (_, i) => ({ ...entry(`Potion ${i}`), entityType: 'item' }));
+
+    results[4] = item;
+    const card = detailView(store, item, record, null, { results, section: 30, page: 1, topicPage: 1, relatedPage: 1 });
+
+    limits(card); assert.ok(card.components.length <= 5);
+
+    for (const row of card.components) {
+        ActionRowBuilder.from(row).toJSON(); assert.ok(row.components.length <= 5);
+    }
+
+    const more = selectSection(card, 'More sections →');
+    const click = fake(alice, 'button', more.id);
+
+    click.values = [more.value];
+    await router(cfg, store, {
+        async detail() {
+            return { value: record };
+        },
+    })(click);
+    assert.deepEqual(click.calls.map((c) => c[0]), ['deferUpdate', 'editReply']);
+    const updated = click.calls[1][1];
+
+    limits(updated);
+    const menu = updated.components.flatMap((row) => row.components).find((c) => c.type === 3 && c.placeholder === 'Choose information to view');
+
+    assert.ok(menu.options.some((o) => o.label === 'Effect 45'));
+    assert.equal(store.read(menu.custom_id).sectionKey, store.read(more.id).sectionKey);
 });
